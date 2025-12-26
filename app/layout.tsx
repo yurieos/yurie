@@ -33,8 +33,15 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Yurie",
   description: "An AI-powered search tool powered by Firecrawl and LangGraph",
+  manifest: "/manifest.json",
   icons: {
     icon: "/favicon.svg",
+    apple: "/apple-touch-icon.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Yurie",
   },
 };
 
