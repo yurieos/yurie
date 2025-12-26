@@ -44,6 +44,9 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Yurie",
   },
+};
+
+export const viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f1e6" },
     { media: "(prefers-color-scheme: dark)", color: "#2d2621" },

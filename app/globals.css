@@ -136,9 +136,18 @@
     @apply border-border outline-ring/50;
   }
   
+  html {
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "liga" 1;
+    line-height: 1.7;
+    letter-spacing: 0.01em;
   }
 }
 
@@ -432,5 +441,33 @@
 
 .source-card-gradient:hover::before {
   opacity: 0.03;
+}
+
+/* Typography improvements for markdown content */
+.markdown-content {
+  word-spacing: 0.05em;
+}
+
+.markdown-content p + p {
+  margin-top: 1.25rem;
+}
+
+.markdown-content h1 + p,
+.markdown-content h2 + p,
+.markdown-content h3 + p,
+.markdown-content h4 + p {
+  margin-top: 0.75rem;
+}
+
+.markdown-content strong {
+  letter-spacing: 0.01em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content li:last-child {
+  margin-bottom: 0;
 }
 

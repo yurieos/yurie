@@ -93,7 +93,7 @@ export class SearchRouter {
 
     this.llm = new ChatOpenAI({
       modelName: MODEL_CONFIG.FAST_MODEL,
-      temperature: 0,
+      temperature: MODEL_CONFIG.TEMPERATURE,
       openAIApiKey: apiKey,
     });
   }

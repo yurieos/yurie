@@ -1,4 +1,4 @@
-import { Source } from './langgraph-search-engine';
+import { Source } from './types';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { MODEL_CONFIG } from './config';
@@ -331,8 +331,7 @@ Instructions:
 6. Target length: approximately ${targetLength} characters
 
 Provide a focused summary that would help answer the user's question:`,
-        temperature: 0.3,
-        maxTokens: Math.ceil(targetLength / 3), // Rough token estimation
+        temperature: MODEL_CONFIG.TEMPERATURE,
       });
 
       const summary = result.text.trim();

@@ -347,7 +347,7 @@ function SourcesList({ sources }: { sources: Source[] }) {
                   </div>
                   <button
                     onClick={() => setShowSourcesPanel(false)}
-                    className="p-2 hover:bg-accent rounded-xl transition-colors cursor-pointer"
+                    className="p-2 hover:bg-accent rounded-full transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5 text-muted-foreground" />
                   </button>
@@ -471,12 +471,6 @@ function SourcesList({ sources }: { sources: Source[] }) {
               )}
             </div>
             
-            {/* Footer hint */}
-            <div className="flex-shrink-0 px-5 py-3 border-t border-border bg-muted/20">
-              <p className="text-[11px] text-muted-foreground text-center">
-                Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Esc</kbd> to close
-              </p>
-            </div>
           </>
         )}
       </div>

@@ -21,7 +21,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       return id;
     };
 
-    let parsed = text;
+    // Normalize line endings (CRLF -> LF)
+    let parsed = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     // 1. Protect Code Blocks
     parsed = parsed.replace(/```([^\n]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
@@ -104,16 +105,16 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     parsed = parsed.replace(/(?<!\*)\*(?!\*)(?=\S)/g, '');
     
     // 6. Blockquotes
-    parsed = parsed.replace(/^> (.+)$/gm, '<blockquote class="border-l-2 border-primary pl-4 my-3 italic text-muted-foreground">$1</blockquote>');
+    parsed = parsed.replace(/^> (.+)$/gm, '<blockquote class="border-l-3 border-primary pl-5 py-1 my-6 italic text-muted-foreground leading-relaxed">$1</blockquote>');
     
-    // 7. Headers
-    parsed = parsed.replace(/^#### (.+)$/gm, '<h4 class="text-sm font-heading font-semibold mt-3 mb-2">$1</h4>');
-    parsed = parsed.replace(/^### (.+)$/gm, '<h3 class="text-base font-heading font-semibold mt-4 mb-2">$1</h3>');
-    parsed = parsed.replace(/^## (.+)$/gm, '<h2 class="text-lg font-heading font-semibold mt-5 mb-2">$1</h2>');
-    parsed = parsed.replace(/^# (.+)$/gm, '<h1 class="text-xl font-heading font-bold mt-6 mb-3">$1</h1>');
+    // 7. Headers - allow optional leading whitespace
+    parsed = parsed.replace(/^\s*#### (.+)$/gm, '<h4 class="text-base font-heading font-semibold mt-6 mb-3 tracking-tight leading-snug">$1</h4>');
+    parsed = parsed.replace(/^\s*### (.+)$/gm, '<h3 class="text-lg font-heading font-semibold mt-8 mb-4 tracking-tight leading-snug">$1</h3>');
+    parsed = parsed.replace(/^\s*## (.+)$/gm, '<h2 class="text-xl font-heading font-semibold mt-10 mb-4 tracking-tight leading-snug">$1</h2>');
+    parsed = parsed.replace(/^\s*# (.+)$/gm, '<h1 class="text-2xl font-heading font-bold mt-10 mb-5 tracking-tight leading-snug">$1</h1>');
     
     // 8. HR
-    parsed = parsed.replace(/^---$/gm, '<hr class="my-6 border-border" />');
+    parsed = parsed.replace(/^---$/gm, '<hr class="my-10 border-border" />');
 
     // 9. Handle list blocks and tables
     const listBlocks = parsed.split('\n');
@@ -192,7 +193,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       
       if (isListItem && !inList) {
         listType = bulletMatch ? 'ul' : 'ol';
-        processedLines.push(`<${listType} class="space-y-2 my-3 pl-0">`);
+        processedLines.push(`<${listType} class="space-y-3 my-6 pl-0">`);
         inList = true;
       } else if (!isListItem && !isContinuation && inList && line.trim() === '') {
         // Empty line ends the list
@@ -201,9 +202,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       }
       
       if (bulletMatch) {
-        processedLines.push(`<li class="ml-5 list-disc">${bulletMatch[1]}</li>`);
+        processedLines.push(`<li class="ml-6 list-disc leading-relaxed">${bulletMatch[1]}</li>`);
       } else if (numberMatch) {
-        processedLines.push(`<li class="ml-5 list-decimal">${numberMatch[2]}</li>`);
+        processedLines.push(`<li class="ml-6 list-decimal leading-relaxed">${numberMatch[2]}</li>`);
       } else if (isContinuation && inList) {
         // Append continuation to previous list item
         if (processedLines.length > 0 && processedLines[processedLines.length - 1].includes('<li')) {
@@ -243,7 +244,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           !para.includes('<blockquote') &&
           !para.includes('<hr') &&
           !para.includes('katex-display')) {
-        return `<p class="mb-3">${para}</p>`;
+        return `<p class="mb-5 leading-relaxed">${para}</p>`;
       }
       return para;
     }).join('\n');
@@ -256,10 +257,10 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   };
 
   return (
-    <div className="text-foreground">
+    <div className="text-foreground text-base">
       <div 
         dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }} 
-        className="markdown-content leading-relaxed [&>h1]:text-foreground [&>h2]:text-foreground [&>h3]:text-foreground [&>h4]:text-foreground"
+        className="markdown-content leading-[1.8] tracking-[0.01em] [&>h1]:text-foreground [&>h2]:text-foreground [&>h3]:text-foreground [&>h4]:text-foreground [&>p]:text-[1.05rem] [&>li]:text-[1.05rem]"
       />
       {streaming && <span className="animate-pulse text-orange-500">▊</span>}
     </div>
