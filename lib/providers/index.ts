@@ -9,6 +9,29 @@ export {
   type SemanticScholarAuthor,
   type SemanticScholarAuthorDetails,
 } from './semantic-scholar-client';
-export { SearchRouter, getSearchRouter, type SearchProvider, type QueryClassification } from './search-router';
+export { 
+  SearchRouter, 
+  getSearchRouter, 
+  type SearchProvider, 
+  type QueryClassification,
+  type FirecrawlOperation,
+} from './search-router';
 export { UnifiedSearchProvider, type UnifiedSearchResult, type UnifiedSearchOptions } from './unified-search';
+
+// Re-export Firecrawl tools and types for convenience
+export {
+  FirecrawlClient,
+  firecrawlTools,
+  getFirecrawlTools,
+  scrapeTool,
+  crawlTool,
+  mapTool,
+  searchTool,
+  type ScrapeToolResult,
+  type CrawlToolResult,
+  type MapToolResult,
+  type SearchToolResult,
+  type FirecrawlMetadata,
+  type FirecrawlDocument,
+} from '../firecrawl';
 

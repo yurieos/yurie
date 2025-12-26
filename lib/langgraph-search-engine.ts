@@ -53,6 +53,30 @@ export interface SearchStep {
   startTime?: number;
 }
 
+// Helper to extract URLs from a query string
+function extractUrlsFromQuery(query: string): string[] {
+  const urlRegex = /https?:\/\/[^\s<>"')\]]+/gi;
+  const matches = query.match(urlRegex) || [];
+  // Clean up URLs (remove trailing punctuation)
+  return matches.map(url => url.replace(/[.,;:!?]+$/, ''));
+}
+
+// Helper to determine if query is asking for crawl/map operations (vs simple scrape)
+function isCrawlOrMapQuery(query: string): boolean {
+  const q = query.toLowerCase();
+  return (
+    q.includes('crawl') || 
+    q.includes('all pages') || 
+    q.includes('entire site') || 
+    q.includes('full site') ||
+    q.includes('map') ||
+    q.includes('structure') ||
+    q.includes('sitemap') ||
+    q.includes('list all urls') ||
+    q.includes('discover pages')
+  );
+}
+
 // Proper LangGraph state using Annotation with reducers
 const SearchStateAnnotation = Annotation.Root({
   // Input fields
@@ -62,6 +86,11 @@ const SearchStateAnnotation = Annotation.Root({
   }),
   context: Annotation<{ query: string; response: string }[] | undefined>({
     reducer: (_, y) => y,
+    default: () => undefined
+  }),
+  // Pre-scraped URL content (when user provides explicit URLs)
+  urlSources: Annotation<Source[] | undefined>({
+    reducer: (x, y) => y ?? x,
     default: () => undefined
   }),
   
@@ -259,6 +288,81 @@ export class LangGraphSearchEngine {
         }
         
         try {
+          // Check if the user provided any URLs - if so, scrape them first
+          // BUT skip this for crawl/map operations (let the search node handle those)
+          const urls = extractUrlsFromQuery(state.query);
+          const isCrawlMap = isCrawlOrMapQuery(state.query);
+          let urlSources: Source[] | undefined = undefined;
+          
+          if (urls.length > 0 && !isCrawlMap) {
+            if (eventCallback) {
+              eventCallback({
+                type: 'provider-selected',
+                provider: 'firecrawl',
+                reason: 'User provided explicit URL(s) - scraping directly with Firecrawl'
+              });
+            }
+            
+            // Scrape URLs in parallel
+            const scrapeResults = await Promise.allSettled(
+              urls.slice(0, 3).map(async (url, index) => {
+                if (eventCallback) {
+                  eventCallback({
+                    type: 'scraping',
+                    url,
+                    index: index + 1,
+                    total: Math.min(urls.length, 3),
+                    query: state.query
+                  });
+                }
+                
+                const result = await firecrawl.scrapeForLLM(url, {
+                  onlyMainContent: true,
+                  includeLinks: false,
+                });
+                
+                if (result.success && result.markdown) {
+                  const source: Source = {
+                    url,
+                    title: result.title || url,
+                    content: result.markdown,
+                    quality: 1.0, // High quality since it's directly scraped
+                  };
+                  
+                  // Generate summary for the scraped content
+                  const summary = await summarizeContent(result.markdown, state.query);
+                  if (summary) {
+                    source.summary = summary;
+                    if (eventCallback) {
+                      eventCallback({
+                        type: 'source-complete',
+                        url,
+                        summary
+                      });
+                    }
+                  }
+                  
+                  return source;
+                }
+                return null;
+              })
+            );
+            
+            urlSources = scrapeResults
+              .filter((r): r is PromiseFulfilledResult<Source | null> => r.status === 'fulfilled')
+              .map(r => r.value)
+              .filter((s): s is Source => s !== null);
+            
+            if (urlSources.length > 0 && eventCallback) {
+              eventCallback({
+                type: 'found',
+                sources: urlSources,
+                query: `Scraped ${urlSources.length} URL(s)`,
+                provider: 'firecrawl'
+              });
+            }
+          }
+          
           const understanding = await analyzeQuery(state.query, state.context);
           
           if (eventCallback) {
@@ -270,6 +374,7 @@ export class LangGraphSearchEngine {
           
           return {
             understanding,
+            urlSources,
             phase: 'planning' as SearchPhase
           };
         } catch (error) {
@@ -306,6 +411,41 @@ export class LangGraphSearchEngine {
               confidence: 0,
               sources: []
             }));
+          }
+          
+          // If we have URL sources scraped from user-provided URLs, check if they answer the questions
+          if (state.urlSources && state.urlSources.length > 0 && state.searchAttempt === 0) {
+            const checkAnswersInSources = this.checkAnswersInSources.bind(this);
+            const updatedSubQueries = await checkAnswersInSources(subQueries, state.urlSources);
+            
+            const answeredCount = updatedSubQueries.filter(sq => sq.answered).length;
+            const totalQuestions = updatedSubQueries.length;
+            
+            if (eventCallback) {
+              if (answeredCount === totalQuestions) {
+                eventCallback({
+                  type: 'thinking',
+                  message: `Found answers to all ${totalQuestions} questions in the provided URL(s)`
+                });
+              } else if (answeredCount > 0) {
+                eventCallback({
+                  type: 'thinking',
+                  message: `Found answers to ${answeredCount} of ${totalQuestions} questions in the URL. Searching for more info...`
+                });
+              }
+            }
+            
+            // If all questions are answered, skip to analysis
+            if (answeredCount === totalQuestions) {
+              return {
+                subQueries: updatedSubQueries,
+                sources: state.urlSources,
+                phase: 'analyzing' as SearchPhase
+              };
+            }
+            
+            // Update subQueries with what we found
+            subQueries = updatedSubQueries;
           }
           
           // Generate search queries for unanswered questions
@@ -536,7 +676,7 @@ export class LangGraphSearchEngine {
         }
       })
       
-      // Scraping node
+      // Scraping node - Enhanced with Firecrawl deep extraction
       .addNode("scrape", async (state: SearchState, config?: GraphConfig): Promise<Partial<SearchState>> => {
         const eventCallback = config?.configurable?.eventCallback;
         const sourcesToScrape = state.sources?.filter(s => 
@@ -550,69 +690,116 @@ export class LangGraphSearchEngine {
         ) || [];
         newScrapedSources.push(...sourcesWithContent);
         
-        // Then scrape sources without content
-        for (let i = 0; i < Math.min(sourcesToScrape.length, SEARCH_CONFIG.MAX_SOURCES_TO_SCRAPE); i++) {
-          const source = sourcesToScrape[i];
-          
-          if (eventCallback) {
-            eventCallback({
-              type: 'scraping',
-              url: source.url,
-              index: newScrapedSources.length + 1,
-              total: sourcesWithContent.length + Math.min(sourcesToScrape.length, SEARCH_CONFIG.MAX_SOURCES_TO_SCRAPE),
-              query: state.query
-            });
-          }
-          
-          try {
-            const scraped = await firecrawl.scrapeUrl(source.url, SEARCH_CONFIG.SCRAPE_TIMEOUT);
-            if (scraped.success && scraped.markdown) {
-              const enrichedSource = {
-                ...source,
-                content: scraped.markdown,
-                quality: scoreContent(scraped.markdown, state.query)
-              };
-              newScrapedSources.push(enrichedSource);
-              
-              // Show processing animation
-              if (eventCallback) {
-                eventCallback({
-                  type: 'source-processing',
-                  url: source.url,
-                  title: source.title,
-                  stage: 'browsing'
-                });
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 150));
-              
-              const summary = await summarizeContent(scraped.markdown, state.query);
-              if (summary) {
-                enrichedSource.summary = summary;
-                
-                if (eventCallback) {
-                  eventCallback({
-                    type: 'source-complete',
-                    url: source.url,
-                    summary: summary
-                  });
-                }
-              }
-            } else if (scraped.error === 'timeout') {
-              if (eventCallback) {
-                eventCallback({
-                  type: 'thinking',
-                  message: `${new URL(source.url).hostname} is taking too long to respond, moving on...`
-                });
-              }
-            }
-          } catch {
+        // Determine if we should use deep extraction based on config
+        const useDeepExtraction = PROVIDER_CONFIG.FIRECRAWL?.ENABLE_DEEP_EXTRACTION ?? true;
+        const autoScrapeThreshold = PROVIDER_CONFIG.FIRECRAWL?.AUTO_SCRAPE_THRESHOLD ?? 3;
+        
+        // Also auto-scrape top sources even if they have some content (for richer data)
+        const topSourcesToEnrich = useDeepExtraction 
+          ? state.sources?.slice(0, autoScrapeThreshold).filter(s => 
+              !newScrapedSources.some(ns => ns.url === s.url)
+            ) || []
+          : [];
+        
+        const allSourcesToProcess = [...sourcesToScrape, ...topSourcesToEnrich];
+        const uniqueSources = allSourcesToProcess.filter((s, i, arr) => 
+          arr.findIndex(x => x.url === s.url) === i
+        );
+        
+        if (eventCallback && uniqueSources.length > 0) {
+          eventCallback({
+            type: 'thinking',
+            message: `Extracting deep content from ${uniqueSources.length} sources using Firecrawl...`
+          });
+        }
+        
+        // Process sources in parallel for better performance
+        const scrapePromises = uniqueSources
+          .slice(0, SEARCH_CONFIG.MAX_SOURCES_TO_SCRAPE)
+          .map(async (source, i) => {
             if (eventCallback) {
               eventCallback({
-                type: 'thinking',
-                message: `Couldn't access ${new URL(source.url).hostname}, trying other sources...`
+                type: 'scraping',
+                url: source.url,
+                index: newScrapedSources.length + i + 1,
+                total: sourcesWithContent.length + Math.min(uniqueSources.length, SEARCH_CONFIG.MAX_SOURCES_TO_SCRAPE),
+                query: state.query
               });
             }
+            
+            try {
+              // Use the enhanced scrapeForLLM method for better formatting
+              const scraped = await firecrawl.scrapeForLLM(source.url, {
+                onlyMainContent: true,
+                includeLinks: false,
+              });
+              
+              if (scraped.success && scraped.markdown) {
+                const enrichedSource: Source = {
+                  ...source,
+                  title: scraped.title || source.title,
+                  content: scraped.markdown,
+                  quality: scoreContent(scraped.markdown, state.query)
+                };
+                
+                // Show processing animation
+                if (eventCallback) {
+                  eventCallback({
+                    type: 'source-processing',
+                    url: source.url,
+                    title: enrichedSource.title,
+                    stage: 'extracting'
+                  });
+                }
+                
+                // Generate summary
+                const summary = await summarizeContent(scraped.markdown, state.query);
+                if (summary) {
+                  enrichedSource.summary = summary;
+                  
+                  if (eventCallback) {
+                    eventCallback({
+                      type: 'source-complete',
+                      url: source.url,
+                      summary: summary
+                    });
+                  }
+                }
+                
+                return enrichedSource;
+              } else if (scraped.error) {
+                if (eventCallback) {
+                  const hostname = new URL(source.url).hostname;
+                  eventCallback({
+                    type: 'thinking',
+                    message: `Couldn't fully extract ${hostname}, using available content...`
+                  });
+                }
+                // Return original source if scrape failed
+                return source.content ? source : null;
+              }
+            } catch {
+              if (eventCallback) {
+                try {
+                  const hostname = new URL(source.url).hostname;
+                  eventCallback({
+                    type: 'thinking',
+                    message: `Couldn't access ${hostname}, trying other sources...`
+                  });
+                } catch {
+                  // Ignore URL parsing errors
+                }
+              }
+            }
+            return null;
+          });
+        
+        // Wait for all scrapes to complete
+        const results = await Promise.allSettled(scrapePromises);
+        
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value) {
+            newScrapedSources.push(result.value);
           }
         }
         
@@ -636,6 +823,9 @@ export class LangGraphSearchEngine {
         
         // Combine sources and remove duplicates by URL
         const sourceMap = new Map<string, Source>();
+        
+        // Add URL sources first (highest quality - directly scraped from user-provided URLs)
+        (state.urlSources || []).forEach(s => sourceMap.set(s.url, s));
         
         // Add all sources (not just those with long content, since summaries contain key info)
         (state.sources || []).forEach(s => sourceMap.set(s.url, s));
@@ -967,6 +1157,8 @@ export class LangGraphSearchEngine {
         searchProvider: undefined,
         providerReason: undefined,
         preAnswer: undefined,
+        // URL sources (when user provides explicit URLs)
+        urlSources: undefined,
       };
 
       // Configure with event callback
