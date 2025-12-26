@@ -1,5 +1,8 @@
-// Favicon utilities with error tracking to prevent repeated failures
+// Favicon utilities - fetches real favicons from source websites
 const failedDomains = new Set<string>();
+
+// Fallback globe icon for when favicon fails to load
+const GLOBE_FALLBACK = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦕%3C/text%3E%3C/svg%3E`;
 
 export function getFaviconUrl(url: string): string {
   try {
@@ -16,8 +19,8 @@ export function getFaviconUrl(url: string): string {
   }
 }
 
-export function getDefaultFavicon(size: number = 20): string {
-  return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="none"%3E%3Crect width="${size}" height="${size}" rx="${size < 20 ? 2 : 4}" fill="%23E5E7EB"/%3E%3C/svg%3E`;
+export function getDefaultFavicon(): string {
+  return GLOBE_FALLBACK;
 }
 
 export function markFaviconFailed(url: string): void {
