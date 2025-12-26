@@ -3,8 +3,8 @@ import fs from 'fs';
 import https from 'https';
 import path from 'path';
 
-// Twemoji dinosaur (sauropod) SVG URL
-const TWEMOJI_URL = 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/svg/1f995.svg';
+// Twemoji comet SVG URL
+const TWEMOJI_URL = 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/svg/2604.svg';
 
 const sizes = [
   { size: 192, name: 'icon-192.png' },
@@ -25,7 +25,7 @@ function downloadSvg(url) {
 }
 
 async function main() {
-  console.log('Downloading Twemoji dinosaur...');
+  console.log('Downloading Twemoji comet...');
   const svgContent = await downloadSvg(TWEMOJI_URL);
   
   for (const { size, name } of sizes) {
