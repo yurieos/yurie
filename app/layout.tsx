@@ -43,6 +43,10 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Yurie",
   },
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f1e6" },
+    { media: "(prefers-color-scheme: dark)", color: "#2d2621" },
+  ],
 };
 
 export default function RootLayout({
