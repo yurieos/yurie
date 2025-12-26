@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { search } from './search';
 import { readStreamableValue } from 'ai/rsc';
 import { SearchDisplay } from './search-display';
@@ -19,18 +19,235 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { Suggestions } from "@/components/suggestions";
+import { 
+  Loader2, 
+  CornerRightUp,
+  ChevronRight, 
+  X, 
+  Search as SearchIcon,
+  ExternalLink,
+  FileText,
+  Clock,
+  Copy,
+  Check,
+  BookOpen,
+  Sparkles,
+  ChevronLeft
+} from 'lucide-react';
 
-const SUGGESTED_QUERIES = [
-  "Who are the founders of Firecrawl?",
-  "When did NVIDIA release the RTX 4080 Super?",
-  "Compare the latest iPhone 16 and Samsung Galaxy S25",
-  "Compare Claude 4 to OpenAI's o3"
-];
+// Helper function to estimate reading time
+function getReadingTime(content: string): string {
+  const wordsPerMinute = 200;
+  const words = content.trim().split(/\s+/).length;
+  const minutes = Math.ceil(words / wordsPerMinute);
+  return minutes === 1 ? '1 min read' : `${minutes} min read`;
+}
+
+// Helper function to get word count
+function getWordCount(content: string): string {
+  const words = content.trim().split(/\s+/).length;
+  return words.toLocaleString() + ' words';
+}
+
+// Helper function to safely get hostname from URL
+function getHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+// Individual source detail view
+function SourceDetailView({ 
+  source, 
+  index, 
+  onBack 
+}: { 
+  source: Source; 
+  index: number; 
+  onBack: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = async () => {
+    if (source.content) {
+      await navigator.clipboard.writeText(source.content);
+      setCopied(true);
+      toast.success('Content copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+  
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex-shrink-0 border-b border-border bg-gradient-to-b from-card to-card/95">
+        <div className="p-4">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3 group cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back to sources</span>
+          </button>
+          
+          <div className="flex items-start gap-3">
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                <Image 
+                  src={getFaviconUrl(source.url)} 
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="w-6 h-6 rounded"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    img.src = getDefaultFavicon();
+                    markFaviconFailed(source.url);
+                  }}
+                />
+              </div>
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {index + 1}
+              </span>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-foreground text-base leading-tight line-clamp-2">
+                {source.title}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {getHostname(source.url)}
+              </p>
+            </div>
+          </div>
+          
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 mt-4">
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-xl transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Visit page</span>
+            </a>
+            {source.content && (
+              <button
+                onClick={handleCopy}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-xl transition-colors cursor-pointer"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-500" />
+                    <span>Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+        
+        {/* Stats bar */}
+        {source.content && (
+          <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/40 border-t border-border/50">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{getReadingTime(source.content)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <FileText className="w-3.5 h-3.5" />
+              <span>{getWordCount(source.content)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{source.content.length.toLocaleString()} chars</span>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        {source.content ? (
+          <div className="p-5">
+            <div className="prose dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary">
+              <MarkdownRenderer content={source.content} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <FileText className="w-8 h-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-muted-foreground font-medium">No content available</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              Visit the page directly to view its contents
+            </p>
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Open in new tab</span>
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Helper component for sources list
 function SourcesList({ sources }: { sources: Source[] }) {
   const [showSourcesPanel, setShowSourcesPanel] = useState(false);
-  const [expandedSourceIndex, setExpandedSourceIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSourceIndex, setSelectedSourceIndex] = useState<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  
+  // Filter sources based on search query
+  const filteredSources = sources.filter(source => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      source.title.toLowerCase().includes(query) ||
+      source.url.toLowerCase().includes(query) ||
+      (source.content?.toLowerCase().includes(query) ?? false)
+    );
+  });
+  
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (selectedSourceIndex !== null) {
+        setSelectedSourceIndex(null);
+      } else {
+        setShowSourcesPanel(false);
+      }
+    }
+  }, [selectedSourceIndex]);
+  
+  useEffect(() => {
+    if (showSourcesPanel) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showSourcesPanel, handleKeyDown]);
+  
+  // Calculate total stats
+  const totalWords = sources.reduce((acc, s) => {
+    return acc + (s.content ? s.content.trim().split(/\s+/).length : 0);
+  }, 0);
+  const sourcesWithContent = sources.filter(s => s.content).length;
   
   return (
     <>
@@ -59,18 +276,18 @@ function SourcesList({ sources }: { sources: Source[] }) {
                     alt=""
                     width={24}
                     height={24}
-                    className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 bg-white"
+                    className="w-6 h-6 rounded-full border-2 border-background bg-card shadow-sm"
                     style={{ zIndex: 5 - i }}
                     onError={(e) => {
                       const img = e.target as HTMLImageElement;
-                      img.src = getDefaultFavicon(24);
+                      img.src = getDefaultFavicon();
                       markFaviconFailed(source.url);
                     }}
                   />
                 ))}
                 {uniqueSources.length > 5 && (
-                  <div className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                    <span className="text-[10px] font-medium text-gray-600 dark:text-gray-300">+{uniqueSources.length - 5}</span>
+                  <div className="w-6 h-6 rounded-full border-2 border-background bg-primary/10 flex items-center justify-center shadow-sm">
+                    <span className="text-[10px] font-bold text-primary">+{uniqueSources.length - 5}</span>
                   </div>
                 )}
               </>
@@ -79,104 +296,189 @@ function SourcesList({ sources }: { sources: Source[] }) {
         </div>
         <button
           onClick={() => setShowSourcesPanel(true)}
-          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 flex items-center gap-2"
+          className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all cursor-pointer"
         >
           <span>View {sources.length} sources & page contents</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
 
       {/* Click-away overlay */}
       {showSourcesPanel && (
         <div 
-          className="fixed inset-0 z-30"
-          onClick={() => setShowSourcesPanel(false)}
+          className="fixed inset-0 z-30 bg-background/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => {
+            if (selectedSourceIndex !== null) {
+              setSelectedSourceIndex(null);
+            } else {
+              setShowSourcesPanel(false);
+            }
+          }}
         />
       )}
       
       {/* Sources Panel */}
-      <div className={`fixed inset-y-0 right-0 w-96 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out ${
-        showSourcesPanel ? 'translate-x-0' : 'translate-x-full'
-      } z-40 overflow-y-auto scrollbar-hide`}>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">Sources ({sources.length})</h3>
-            <button
-              onClick={() => setShowSourcesPanel(false)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <div className="space-y-2">
-            {sources.map((source, i) => (
-              <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
-                <div 
-                  className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${expandedSourceIndex === i ? '' : 'rounded-lg'}`}
-                  onClick={() => setExpandedSourceIndex(expandedSourceIndex === i ? null : i)}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-orange-600 mt-0.5">[{i + 1}]</span>
-                    <Image 
-                      src={getFaviconUrl(source.url)} 
-                      alt=""
-                      width={20}
-                      height={20}
-                      className="w-5 h-5 mt-0.5 flex-shrink-0"
-                      onError={(e) => {
-                        const img = e.target as HTMLImageElement;
-                        img.src = getDefaultFavicon(20);
-                        markFaviconFailed(source.url);
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <a 
-                        href={source.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="font-medium text-sm text-gray-900 dark:text-gray-100 hover:text-orange-600 dark:hover:text-orange-400 line-clamp-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {source.title}
-                      </a>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-                        {new URL(source.url).hostname}
-                      </p>
+      <div 
+        ref={panelRef}
+        className={`fixed inset-y-0 right-0 w-full sm:w-[480px] bg-card border-l border-border transform transition-transform duration-300 ease-out ${
+          showSourcesPanel ? 'translate-x-0' : 'translate-x-full'
+        } z-40 flex flex-col shadow-2xl`}
+      >
+        {selectedSourceIndex !== null ? (
+          <SourceDetailView 
+            source={sources[selectedSourceIndex]} 
+            index={selectedSourceIndex}
+            onBack={() => setSelectedSourceIndex(null)}
+          />
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex-shrink-0 border-b border-border">
+              <div className="p-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                      <BookOpen className="w-5 h-5 text-primary" />
                     </div>
-                    <svg 
-                      className={`w-4 h-4 text-gray-400 transition-transform ${expandedSourceIndex === i ? 'rotate-180' : ''}`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">Sources</h3>
+                      <p className="text-xs text-muted-foreground">{sources.length} pages researched</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowSourcesPanel(false)}
+                    className="p-2 hover:bg-accent rounded-xl transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5 text-muted-foreground" />
+                  </button>
                 </div>
                 
-                {expandedSourceIndex === i && source.content && (
-                  <div className="border-t border-gray-200 dark:border-gray-700">
-                    <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {source.content.length.toLocaleString()} characters
-                      </span>
-                    </div>
-                    <div className="p-4 max-h-96 overflow-y-auto scrollbar-hide">
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <MarkdownRenderer content={source.content} />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Search */}
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search sources..."
+                    className="w-full h-10 pl-10 pr-4 text-sm bg-muted/50 border border-border rounded-xl placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-accent rounded cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+              
+              {/* Stats bar */}
+              <div className="flex items-center gap-4 px-5 py-2.5 bg-muted/30 border-t border-border/50">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>{sourcesWithContent} with content</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{totalWords.toLocaleString()} words total</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Source list */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
+              {filteredSources.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center">
+                  <SearchIcon className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-muted-foreground font-medium">No sources found</p>
+                  <p className="text-sm text-muted-foreground/70 mt-1">
+                    Try a different search term
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredSources.map((source, i) => {
+                    const originalIndex = sources.indexOf(source);
+                    const hasContent = !!source.content;
+                    
+                    return (
+                      <div 
+                        key={originalIndex}
+                        onClick={() => setSelectedSourceIndex(originalIndex)}
+                        className="group relative p-3.5 rounded-2xl border border-border hover:border-primary/30 bg-card hover:bg-accent/30 cursor-pointer transition-all duration-200 hover:shadow-md source-card-gradient"
+                        style={{
+                          animationDelay: `${i * 50}ms`,
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="relative flex-shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-muted/70 flex items-center justify-center overflow-hidden">
+                              <Image 
+                                src={getFaviconUrl(source.url)} 
+                                alt=""
+                                width={20}
+                                height={20}
+                                className="w-5 h-5"
+                                onError={(e) => {
+                                  const img = e.target as HTMLImageElement;
+                                  img.src = getDefaultFavicon();
+                                  markFaviconFailed(source.url);
+                                }}
+                              />
+                            </div>
+                            <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm">
+                              {originalIndex + 1}
+                            </span>
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                              {source.title}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-1 truncate">
+                              {getHostname(source.url)}
+                            </p>
+                            
+                            {hasContent && (
+                              <div className="flex items-center gap-3 mt-2">
+                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                                  <Clock className="w-3 h-3" />
+                                  {getReadingTime(source.content!)}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                                  <FileText className="w-3 h-3" />
+                                  {getWordCount(source.content!)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
+                        </div>
+                        
+                        {/* Content preview */}
+                        {hasContent && (
+                          <p className="text-xs text-muted-foreground/80 mt-2.5 line-clamp-2 leading-relaxed pl-12">
+                            {source.content!.slice(0, 150).trim()}...
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            {/* Footer hint */}
+            <div className="flex-shrink-0 px-5 py-3 border-t border-border bg-muted/20">
+              <p className="text-[11px] text-muted-foreground text-center">
+                Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Esc</kbd> to close
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -192,19 +494,12 @@ export function Chat() {
   }>>([]);
   const [input, setInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [hasShownSuggestions, setHasShownSuggestions] = useState(false);
   const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>('');
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
   const [, setIsCheckingEnv] = useState<boolean>(true);
   const [pendingQuery, setPendingQuery] = useState<string>('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleSelectSuggestion = (suggestion: string) => {
-    setInput(suggestion);
-    setShowSuggestions(false);
-  };
 
   // Check for environment variables on mount
   useEffect(() => {
@@ -355,15 +650,15 @@ export function Chat() {
                     ...msg,
                     content: (
                       <div className="space-y-4">
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className="prose dark:prose-invert max-w-none">
                           <MarkdownRenderer content={finalContent} />
                         </div>
                         <CitationTooltip sources={event.sources || []} />
                         
                         {/* Follow-up Questions */}
                         {event.followUpQuestions && event.followUpQuestions.length > 0 && (
-                          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                          <div className="mt-8 pt-6 border-t border-border">
+                            <h3 className="text-sm font-semibold text-foreground mb-3">
                               Follow-up questions
                             </h3>
                             <div className="space-y-2">
@@ -377,15 +672,13 @@ export function Chat() {
                                     });
                                     document.dispatchEvent(evt);
                                   }}
-                                  className="block w-full text-left px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group"
+                                  className="block w-full text-left px-4 py-3 rounded-2xl border border-border hover:border-primary/50 hover:bg-accent transition-colors group cursor-pointer"
                                 >
                                   <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                                    <span className="text-sm text-muted-foreground group-hover:text-foreground">
                                       {question}
                                     </span>
-                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-orange-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
+                                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary flex-shrink-0 ml-2" />
                                   </div>
                                 </button>
                               ))}
@@ -422,13 +715,13 @@ export function Chat() {
         id: Date.now().toString(),
         role: 'assistant',
         content: (
-          <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <p className="text-red-700 dark:text-red-300 font-medium">Search Error</p>
-            <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errorMessage}</p>
+          <div className="p-4 border border-destructive/30 bg-destructive/10 rounded-xl">
+            <p className="text-destructive font-medium">Search Error</p>
+            <p className="text-destructive/80 text-sm mt-1">{errorMessage}</p>
             {(errorMessage.includes('API key') || errorMessage.includes('OPENAI_API_KEY')) && (
-              <p className="text-red-600 dark:text-red-400 text-sm mt-2">
+              <p className="text-destructive/80 text-sm mt-2">
                 Please ensure all required API keys are set in your environment variables:
-                <br />• OPENAI_API_KEY (for GPT-4o)
+                <br />• OPENAI_API_KEY (for gpt-5.2-2025-12-11)
                 <br />• ANTHROPIC_API_KEY (optional, for Claude)
                 <br />• FIRECRAWL_API_KEY (can be provided via UI)
               </p>
@@ -445,7 +738,6 @@ export function Chat() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isSearching) return;
-    setShowSuggestions(false);
 
     const userMessage = input;
     setInput('');
@@ -484,7 +776,7 @@ export function Chat() {
     <div className="flex flex-col flex-1">
       {messages.length === 0 ? (
         // Center input when no messages
-        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 pt-16">
           <div className="w-full max-w-4xl">
             <form onSubmit={handleSubmit}>
               <div className="relative">
@@ -492,59 +784,32 @@ export function Chat() {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onFocus={() => {
-                    if (!hasShownSuggestions && messages.length === 0) {
-                      setShowSuggestions(true);
-                      setHasShownSuggestions(true);
-                    }
-                  }}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder="Enter query..."
-                  className="w-full h-14 rounded-full border border-zinc-200 bg-white pl-6 pr-16 text-base ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-orange-400 shadow-sm"
+                  placeholder="Research anything"
+                  className="w-full h-14 rounded-full border border-border bg-card pl-6 pr-16 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm transition-shadow hover:shadow-md"
                   disabled={isSearching}
                 />
                 <button
                   type="submit"
                   disabled={isSearching || !input.trim()}
-                  className="absolute right-2 top-2 h-10 w-10 bg-orange-500 hover:bg-orange-600 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center"
+                  className="absolute right-2 top-2 h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center cursor-pointer"
                 >
                   {isSearching ? (
-                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    <CornerRightUp className="w-5 h-5" />
                   )}
                 </button>
                 
-                {/* Suggestions dropdown - only show on initial load */}
-                {showSuggestions && !input && messages.length === 0 && (
-                  <div className="absolute top-full mt-2 w-full bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-                    <div className="p-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 px-3 py-2 font-medium">Try searching for:</p>
-                      {SUGGESTED_QUERIES.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          onClick={() => handleSelectSuggestion(suggestion)}
-                          className="w-full text-left px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-lg transition-colors text-sm text-gray-700 dark:text-gray-300"
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <span className="line-clamp-1">{suggestion}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </form>
+            
+            <div className="mt-8">
+              <Suggestions 
+                onValueChange={setInput}
+                inputValue={input}
+                isEmpty={messages.length === 0} 
+              />
+            </div>
           </div>
         </div>
       ) : (
@@ -563,7 +828,7 @@ export function Chat() {
                 >
                   {msg.role === 'user' ? (
                     <div className="max-w-2xl">
-                      <span className="inline-block px-5 py-3 rounded-2xl bg-[#FBFAF9] dark:bg-zinc-800 text-[#36322F] dark:text-zinc-100">
+                      <span className="inline-block px-5 py-3 rounded-2xl bg-secondary text-secondary-foreground">
                         {msg.content}
                       </span>
                     </div>
@@ -576,76 +841,30 @@ export function Chat() {
           </div>
 
           {/* Input */}
-          <div className="bg-white dark:bg-zinc-950 px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-background px-4 sm:px-6 lg:px-8 py-6">
             <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
           <div className="relative">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onFocus={() => {
-                if (!hasShownSuggestions) {
-                  setShowSuggestions(true);
-                  setHasShownSuggestions(true);
-                }
-              }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              placeholder="Enter query..."
-              className="w-full h-14 rounded-full border border-zinc-200 bg-white pl-6 pr-16 text-base ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-orange-400 shadow-sm"
+              placeholder="Research anything"
+              className="w-full h-14 rounded-full border border-border bg-card pl-6 pr-16 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm transition-shadow hover:shadow-md"
               disabled={isSearching}
             />
             
             <button
               type="submit"
               disabled={!input.trim() || isSearching}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors shadow-sm"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-primary-foreground flex items-center justify-center transition-colors shadow-sm cursor-pointer"
             >
               {isSearching ? (
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <Loader2 className="animate-spin h-5 w-5" />
               ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
+                <CornerRightUp className="h-5 w-5" />
               )}
             </button>
             
-            {/* Suggestions dropdown - positioned to show above input */}
-            {showSuggestions && !input && (
-              <div className="absolute bottom-full mb-2 w-full bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-                <div className="p-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 px-3 py-2 font-medium">Try searching for:</p>
-                  {SUGGESTED_QUERIES.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => handleSelectSuggestion(suggestion)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-lg transition-colors text-sm text-gray-700 dark:text-gray-300"
-                    >
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <span className="line-clamp-1">{suggestion}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </form>
       </div>
@@ -658,7 +877,7 @@ export function Chat() {
           <DialogHeader>
             <DialogTitle>Firecrawl API Key Required</DialogTitle>
             <DialogDescription>
-              To use Firesearch, you need a Firecrawl API key. You can get one for free.
+              To use yurie, you need a Firecrawl API key. You can get one for free.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -666,7 +885,7 @@ export function Chat() {
               <Button
                 onClick={() => window.open('https://www.firecrawl.dev/app/api-keys', '_blank')}
                 className="w-full"
-                variant="code"
+                variant="secondary"
               >
                 Get your free API key from Firecrawl →
               </Button>
@@ -687,13 +906,13 @@ export function Chat() {
           </div>
           <div className="flex gap-2 justify-end">
             <Button
-              variant="code"
+              variant="ghost"
               onClick={() => setShowApiKeyModal(false)}
             >
               Cancel
             </Button>
             <Button 
-              variant="orange"
+              variant="default"
               onClick={saveApiKey}
               disabled={!firecrawlApiKey.trim()}
             >

@@ -26,6 +26,42 @@ export const SEARCH_CONFIG = {
   PARALLEL_SUMMARY_GENERATION: true, // Generate summaries in parallel
 } as const;
 
+// Multi-Provider Search Configuration
+export const PROVIDER_CONFIG = {
+  // Enable/disable multi-provider routing (set to false to use Firecrawl only)
+  ENABLE_MULTI_PROVIDER: true,
+  
+  // Default provider when routing is disabled or classification fails
+  DEFAULT_PROVIDER: 'tavily' as const,
+  
+  // Provider-specific settings
+  TAVILY: {
+    SEARCH_DEPTH: 'advanced' as const,  // 'basic' | 'advanced'
+    INCLUDE_ANSWER: true,                // Get pre-synthesized answer
+    MAX_RESULTS: 8,
+  },
+  
+  EXA: {
+    SEARCH_TYPE: 'auto' as const,        // 'neural' | 'keyword' | 'auto'
+    USE_AUTOPROMPT: true,                // Let Exa enhance the query
+    MAX_RESULTS: 10,
+    HIGHLIGHT_SENTENCES: 5,
+  },
+  
+  SEMANTIC_SCHOLAR: {
+    MAX_RESULTS: 10,
+    INCLUDE_ABSTRACTS: true,
+    // Fields to request from API
+    FIELDS: ['title', 'abstract', 'authors', 'year', 'citationCount', 'url', 'venue', 'openAccessPdf'],
+  },
+  
+  // Query routing thresholds
+  ROUTING: {
+    MIN_CONFIDENCE_FOR_OVERRIDE: 0.7,    // Minimum confidence to use classified provider
+    CACHE_CLASSIFICATIONS: true,          // Cache query classifications
+  },
+} as const;
+
 // You can also export individual configs for different components
 export const UI_CONFIG = {
   ANIMATION_DURATION: 300,       // Default animation duration (ms)
@@ -35,7 +71,7 @@ export const UI_CONFIG = {
 
 // Model Configuration
 export const MODEL_CONFIG = {
-  FAST_MODEL: "gpt-4o-mini",     // Fast model for quick operations
-  QUALITY_MODEL: "gpt-4o",       // High-quality model for final synthesis
-  TEMPERATURE: 0,                // Model temperature (0 = deterministic)
+  FAST_MODEL: "gpt-5.2-2025-12-11",     // Using quality model for all operations
+  QUALITY_MODEL: "gpt-5.2-2025-12-11",  // High-quality model for final synthesis
+  TEMPERATURE: 0,                        // Model temperature (0 = deterministic)
 } as const;

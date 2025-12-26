@@ -1,6 +1,7 @@
 import { Source } from './langgraph-search-engine';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { MODEL_CONFIG } from './config';
 
 interface ProcessedSource extends Source {
   relevanceScore: number;
@@ -28,7 +29,7 @@ export class ContextProcessor {
     // Determine summary length based on number of sources
     const summaryLength = this.calculateSummaryLength(sources.length);
     
-    // Process sources with GPT-4o-mini summarization
+    // Process sources with quality model summarization
     const processedSources = await Promise.all(
       sources.map(source => this.summarizeSource(source, query, searchQueries, summaryLength, onProgress))
     );
@@ -283,7 +284,7 @@ export class ContextProcessor {
   }
 
   /**
-   * Summarize a single source using GPT-4o-mini
+   * Summarize a single source using the quality model
    */
   private async summarizeSource(
     source: Source,
@@ -309,7 +310,7 @@ export class ContextProcessor {
       // Create a focused prompt for relevance-based summarization
       
       const result = await generateText({
-        model: openai('gpt-4o-mini'),
+        model: openai(MODEL_CONFIG.QUALITY_MODEL),
         prompt: `You are a research assistant helping to extract the most relevant information from a webpage.
 
 User's question: "${query}"

@@ -72,7 +72,7 @@ export function CitationTooltip({ sources }: CitationTooltipProps) {
       }}
       onMouseLeave={() => setTooltip(null)}
     >
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 max-w-sm pointer-events-auto">
+      <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-lg p-3 max-w-sm pointer-events-auto">
         <div className="flex items-start gap-3">
           <Image 
             src={getFaviconUrl(tooltip.source.url)} 
@@ -82,15 +82,15 @@ export function CitationTooltip({ sources }: CitationTooltipProps) {
             className="w-5 h-5 mt-0.5 flex-shrink-0"
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              img.src = getDefaultFavicon(20);
+              img.src = getDefaultFavicon();
               markFaviconFailed(tooltip.source.url);
             }}
           />
           <div className="min-w-0">
-            <p className="font-medium text-sm text-gray-900 dark:text-gray-100 break-words">
+            <p className="font-medium text-sm text-foreground break-words">
               {tooltip.source.title}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
+            <p className="text-xs text-muted-foreground mt-1 break-all">
               {displayUrl}
             </p>
           </div>
@@ -98,7 +98,7 @@ export function CitationTooltip({ sources }: CitationTooltipProps) {
       </div>
       {/* Arrow */}
       <div className="absolute left-1/2 -translate-x-1/2 -bottom-2">
-        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white dark:border-t-gray-800" />
+        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-popover" />
       </div>
     </div>
   );
