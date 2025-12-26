@@ -35,8 +35,9 @@ export const metadata: Metadata = {
   description: "An AI-powered search tool powered by Firecrawl and LangGraph",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg",
-    apple: "/apple-touch-icon.png",
+    icon: "/favicon.ico",
+    shortcut: "/yurieapplogo.png",
+    apple: "/yurieapplogo.png",
   },
   appleWebApp: {
     capable: true,
