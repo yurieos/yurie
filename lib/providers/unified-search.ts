@@ -1,4 +1,4 @@
-import { Source } from '../langgraph-search-engine';
+import { Source } from '../types';
 import { FirecrawlClient, CrawlToolResult, MapToolResult, ScrapeToolResult } from '../firecrawl';
 import { TavilyClient, TavilySearchResponse } from './tavily-client';
 import { ExaClient, ExaSearchResult } from './exa-client';
