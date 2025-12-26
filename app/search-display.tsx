@@ -7,6 +7,7 @@ import { MarkdownRenderer } from './markdown-renderer';
 import { getFaviconUrl, getDefaultFavicon, markFaviconFailed } from '@/lib/favicon-utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Loader2, Check, ChevronRight, ChevronDown, Clock, AlertCircle, FileText, Search, Zap, FlaskConical, Flame } from 'lucide-react';
+import { TextShimmer } from '@/components/ui/text-shimmer';
 
 // Component for animated thinking line that cycles through messages
 function AnimatedThinkingLine({ messages }: { messages: string[] }) {
@@ -207,36 +208,32 @@ function SourceProcessingLine({ url, stage, summary }: {
   );
 }
 
-// Step indicator component with refined design
+// Step indicator component - minimal and clean
 function StepIndicator({ status }: { status: 'pending' | 'active' | 'completed' }) {
   if (status === 'completed') {
     return (
-      <div className="relative flex items-center justify-center">
-        {/* Subtle glow effect */}
-        <div className="absolute inset-0 w-[18px] h-[18px] rounded-full bg-primary/20 blur-[3px]" />
-        {/* Main circle */}
-        <div className="relative w-[18px] h-[18px] rounded-full bg-primary flex items-center justify-center shadow-sm">
-          <Check className="w-[10px] h-[10px] text-primary-foreground" strokeWidth={2.5} />
-        </div>
+      <div className="w-[14px] h-[14px] rounded-full bg-primary flex items-center justify-center">
+        <Check className="w-[8px] h-[8px] text-primary-foreground" strokeWidth={3} />
       </div>
     );
   }
   
   if (status === 'active') {
     return (
-      <div className="relative flex items-center justify-center w-[18px] h-[18px]">
-        {/* Outer pulse ring */}
-        <div className="absolute inset-[-3px] rounded-full bg-primary/20 animate-ping" style={{ animationDuration: '2s' }} />
-        {/* Inner pulsing dot */}
-        <div className="relative w-[18px] h-[18px] rounded-full bg-primary/80 animate-pulse flex items-center justify-center" style={{ animationDuration: '1.5s' }}>
-          <div className="w-2 h-2 rounded-full bg-primary-foreground/80" />
-        </div>
+      <div className="relative flex items-center justify-center w-[14px] h-[14px]">
+        {/* Single subtle ripple */}
+        <div className="absolute inset-[-4px] rounded-full border border-primary/25 animate-timeline-ripple opacity-0" />
+        {/* Soft glow */}
+        <div className="absolute inset-[-2px] rounded-full bg-primary/20 blur-[3px] animate-timeline-glow" />
+        {/* Main dot */}
+        <div className="relative w-[14px] h-[14px] rounded-full bg-primary animate-timeline-breathe" />
       </div>
     );
   }
   
+  // Pending - simple hollow circle
   return (
-    <div className="w-[18px] h-[18px] rounded-full border-[1.5px] border-muted-foreground/25 bg-muted/30" />
+    <div className="w-[14px] h-[14px] rounded-full border-2 border-muted-foreground/20" />
   );
 }
 
@@ -789,30 +786,30 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
           
           {/* Scrollable steps area */}
           <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4">
-            <div className="relative rounded-2xl p-4 bg-card/90 backdrop-blur-sm border border-border/60 shadow-sm">
-              <div className="relative pl-9">
+            <div className="relative rounded-xl p-4 bg-card/80 border border-border/30">
+              <div className="relative pl-7">
                 {steps.map((step, index) => {
                   const isLastStep = index === steps.length - 1;
                   return (
                     <div 
                       key={step.id} 
-                      className={`relative ${isLastStep ? '' : 'pb-6'}`}
+                      className={`relative ${isLastStep ? '' : 'pb-4'}`}
                     >
                       {/* Step indicator */}
-                      <div className="absolute left-[-31px] top-0 w-[18px] h-[18px] flex items-center justify-center">
+                      <div className="absolute left-[-25px] top-[1px] w-[14px] h-[14px] flex items-center justify-center">
                         <StepIndicator status="completed" />
                       </div>
                       
                       {/* Step label */}
-                      <div className="min-h-[18px] flex flex-col justify-center">
-                        <p className="text-[13px] font-medium text-foreground/90 leading-tight">
+                      <div className="min-h-[14px] flex flex-col justify-center">
+                        <p className="text-[13px] font-medium text-foreground/80 leading-snug">
                           {step.label}
                         </p>
                       </div>
                       
                       {/* Connecting line */}
                       {!isLastStep && (
-                        <div className="absolute left-[-23px] top-[18px] bottom-0 w-[2px] rounded-full bg-primary" />
+                        <div className="absolute left-[-19px] top-[15px] bottom-0 w-[1.5px] rounded-full bg-primary" />
                       )}
                     </div>
                   );
@@ -858,16 +855,9 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
         {/* Current step label */}
         {steps.find(s => s.status === 'active') && (
           <div className="px-4 py-2 border-t border-border/40 bg-muted/20">
-            <div className="flex items-center gap-2">
-              <div className="flex gap-0.5">
-                <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms', animationDuration: '0.8s' }} />
-                <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms', animationDuration: '0.8s' }} />
-                <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms', animationDuration: '0.8s' }} />
-              </div>
-              <span className="text-xs font-medium text-foreground">
-                {steps.find(s => s.status === 'active')?.label}
-              </span>
-            </div>
+            <TextShimmer duration={2} spread={15} className="text-xs font-medium">
+              {steps.find(s => s.status === 'active')?.label}
+            </TextShimmer>
           </div>
         )}
         
@@ -973,8 +963,8 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
         
         {/* Scrollable steps area */}
         <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4" ref={stepsScrollRef}>
-          <div className="relative rounded-2xl p-4 bg-card/90 backdrop-blur-sm border border-border/60 shadow-sm">
-            <div className="relative pl-9">
+          <div className="relative rounded-xl p-4 bg-card/80 border border-border/30">
+            <div className="relative pl-7">
               {/* Steps */}
               {steps.map((step, index) => {
                 const completedCount = steps.filter(s => s.status === 'completed').length;
@@ -991,43 +981,38 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
                     }}
                   >
                     {/* Step content */}
-                    <div className={`relative ${isLastStep ? '' : 'pb-6'}`}>
+                    <div className={`relative ${isLastStep ? '' : 'pb-4'}`}>
                       {/* Step indicator */}
-                      <div className="absolute left-[-31px] top-0 w-[18px] h-[18px] flex items-center justify-center">
+                      <div className="absolute left-[-25px] top-[1px] w-[14px] h-[14px] flex items-center justify-center">
                         <StepIndicator status={step.status} />
                       </div>
                       
                       {/* Label */}
-                      <div className="min-h-[18px] flex flex-col justify-center">
-                        <p className={`text-[13px] leading-tight transition-all duration-300 ${
-                          step.status === 'active' 
-                            ? 'font-semibold text-foreground' 
-                            : step.status === 'completed'
-                            ? 'font-medium text-foreground/90'
-                            : 'text-muted-foreground/50 font-normal'
-                        }`}>
-                          {step.label}
-                        </p>
-                        {step.status === 'active' && (
-                          <div className="flex items-center gap-1.5 mt-1 animate-fade-in">
-                            <div className="flex gap-0.5">
-                              <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms', animationDuration: '0.8s' }} />
-                              <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms', animationDuration: '0.8s' }} />
-                              <span className="w-1 h-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms', animationDuration: '0.8s' }} />
-                            </div>
-                          </div>
+                      <div className="min-h-[14px] flex flex-col justify-center">
+                        {step.status === 'active' ? (
+                          <TextShimmer duration={2} spread={15} className="text-[13px] leading-snug font-medium">
+                            {step.label}
+                          </TextShimmer>
+                        ) : (
+                          <p className={`text-[13px] leading-snug transition-colors duration-200 ${
+                            step.status === 'completed'
+                              ? 'font-medium text-foreground/80'
+                              : 'text-muted-foreground/35'
+                          }`}>
+                            {step.label}
+                          </p>
                         )}
                       </div>
                       
-                      {/* Connecting line */}
+                      {/* Connecting line - clean single line */}
                       {!isLastStep && (
                         <div 
-                          className={`absolute left-[-23px] top-[18px] bottom-0 w-[2px] rounded-full transition-all duration-500 ${
+                          className={`absolute left-[-19px] top-[15px] bottom-0 w-[1.5px] rounded-full transition-colors duration-500 ${
                             isLineCompleted
                               ? 'bg-primary'
                               : step.status === 'active'
-                              ? 'bg-gradient-to-b from-primary/70 to-muted/30'
-                              : 'bg-muted-foreground/20'
+                              ? 'bg-gradient-to-b from-primary to-transparent'
+                              : 'bg-muted-foreground/15'
                           }`}
                         />
                       )}

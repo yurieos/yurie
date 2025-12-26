@@ -81,6 +81,6 @@ export const UI_CONFIG = {
 // Model Configuration
 export const MODEL_CONFIG = {
   FAST_MODEL: "gpt-5-nano-2025-08-07",  // Fast model for quick operations
-  QUALITY_MODEL: "gpt-5.2-2025-12-11",  // High-quality model for final synthesis
+  QUALITY_MODEL: "gpt-5-nano-2025-08-07",  // High-quality model for final synthesis
   TEMPERATURE: 1,                        // Model temperature (1 = default, required by newer models)
 } as const;
