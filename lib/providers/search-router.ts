@@ -4,16 +4,22 @@ import { MODEL_CONFIG } from "../config";
 
 export type SearchProvider = 'tavily' | 'exa' | 'firecrawl' | 'semantic-scholar';
 
+/**
+ * Firecrawl operation types for deep content extraction
+ */
+export type FirecrawlOperation = 'search' | 'scrape' | 'crawl' | 'map';
+
 export interface QueryClassification {
   provider: SearchProvider;
   confidence: number;
   reason: string;
   suggestedMode?: 'search' | 'similar' | 'research' | 'academic' | 'technical';
+  firecrawlOperation?: FirecrawlOperation;
 }
 
 const CLASSIFICATION_PROMPT = `You are a search query router. Classify this query to determine the best search provider.
 
-**Available Providers:**
+**Available Providers (use each appropriately based on query type):**
 
 1. **tavily** - Best for:
    - Factual questions ("Who founded X?", "When did Y happen?")
@@ -23,32 +29,35 @@ const CLASSIFICATION_PROMPT = `You are a search query router. Classify this quer
    - General knowledge lookups
    - "What is X?" questions
 
-2. **exa** - Best for:
+2. **firecrawl** - Best for:
+   - Technical documentation and tutorials
+   - Deep content extraction from specific websites
+   - How-to guides and explanations
+   - Product comparisons requiring detailed analysis
+   - Explicit URL scraping requests
+   - When user provides a specific website to analyze
+   - Full page content extraction
+
+3. **exa** - Best for:
    - Similarity searches ("Find companies like X", "Similar papers to Y")
    - Deep investigation requiring multiple sources
-   - Technical documentation and code
    - Finding related content or alternatives
-   - Historical analysis requiring semantic understanding
    - Company/startup research
+   - Historical analysis requiring semantic understanding
 
-3. **semantic-scholar** - Best for:
+4. **semantic-scholar** - Best for:
    - Academic paper searches ("papers on X", "research about Y")
    - Scientific literature and citations
    - Finding papers by specific authors
    - Conference papers (NeurIPS, ICML, ACL, CVPR, etc.)
    - ArXiv, PubMed, and peer-reviewed journal content
-   - Citation analysis and paper recommendations
    - DOI lookups
 
-4. **firecrawl** - Best for:
-   - Explicit URL scraping requests
-   - When user provides a specific website to analyze
-   - Domain-specific deep crawling
-   - Full page content extraction
+**Choose the provider that best matches the query intent. Each provider has its strengths.**
 
 **Response Format (JSON only):**
 {
-  "provider": "tavily" | "exa" | "firecrawl" | "semantic-scholar",
+  "provider": "tavily" | "firecrawl" | "exa" | "semantic-scholar",
   "confidence": 0.0-1.0,
   "reason": "brief explanation",
   "suggestedMode": "search" | "similar" | "research" | "academic" | "technical"
@@ -63,15 +72,14 @@ const CLASSIFICATION_PROMPT = `You are a search query router. Classify this quer
 
 **Examples:**
 - "Who is the CEO of Apple?" → tavily, search
+- "How does React's useEffect hook work?" → firecrawl, technical
 - "Find startups similar to Stripe" → exa, similar
-- "Latest research on CRISPR gene editing" → semantic-scholar, academic
-- "What are the current Bitcoin prices?" → tavily, search
-- "How does React's useEffect hook work?" → exa, technical
-- "Compare iPhone 16 and Galaxy S25" → tavily, search (current factual comparison)
-- "Papers on transformer architecture attention mechanisms" → semantic-scholar, academic
-- "Attention is All You Need paper citations" → semantic-scholar, academic
-- "Yann LeCun publications" → semantic-scholar, academic
-- "Scrape https://example.com pricing page" → firecrawl, search`;
+- "Papers on transformer architecture" → semantic-scholar, academic
+- "Latest AI news" → tavily, search
+- "Compare Next.js vs Remix in detail" → firecrawl, research
+- "Companies like Notion" → exa, similar
+- "Current Bitcoin price" → tavily, search
+- "Scrape https://docs.example.com" → firecrawl, search`;
 
 export class SearchRouter {
   private llm: ChatOpenAI;
@@ -147,13 +155,59 @@ export class SearchRouter {
   private quickClassify(query: string): QueryClassification {
     const q = query.toLowerCase();
 
-    // Firecrawl patterns - explicit URLs
-    if (q.includes('http://') || q.includes('https://') || q.includes('scrape ') || q.includes('crawl ')) {
+    // Firecrawl patterns - explicit URLs with scrape/crawl/map operations
+    if (q.includes('http://') || q.includes('https://')) {
+      // Determine specific Firecrawl operation
+      if (q.includes('crawl') || q.includes('all pages') || q.includes('entire site') || q.includes('full site')) {
+        return {
+          provider: 'firecrawl',
+          confidence: 0.98,
+          reason: 'Request to crawl entire website',
+          suggestedMode: 'research',
+          firecrawlOperation: 'crawl',
+        };
+      }
+      if (q.includes('map') || q.includes('structure') || q.includes('sitemap') || q.includes('list all urls') || q.includes('discover pages')) {
+        return {
+          provider: 'firecrawl',
+          confidence: 0.98,
+          reason: 'Request to map website structure',
+          suggestedMode: 'search',
+          firecrawlOperation: 'map',
+        };
+      }
+      if (q.includes('scrape') || q.includes('extract') || q.includes('get content from') || q.includes('read page')) {
+        return {
+          provider: 'firecrawl',
+          confidence: 0.98,
+          reason: 'Request to scrape specific URL',
+          suggestedMode: 'search',
+          firecrawlOperation: 'scrape',
+        };
+      }
+      // Default to scrape for bare URL mentions
       return {
         provider: 'firecrawl',
         confidence: 0.95,
-        reason: 'Query contains URL or explicit scraping request',
+        reason: 'Query contains URL for content extraction',
         suggestedMode: 'search',
+        firecrawlOperation: 'scrape',
+      };
+    }
+
+    // Firecrawl patterns - explicit commands without URL
+    if (q.includes('scrape ') || q.includes('crawl ') || q.includes('map ')) {
+      let operation: FirecrawlOperation = 'search';
+      if (q.includes('scrape ')) operation = 'scrape';
+      else if (q.includes('crawl ')) operation = 'crawl';
+      else if (q.includes('map ')) operation = 'map';
+      
+      return {
+        provider: 'firecrawl',
+        confidence: 0.95,
+        reason: 'Explicit web extraction command',
+        suggestedMode: 'search',
+        firecrawlOperation: operation,
       };
     }
 
@@ -205,7 +259,42 @@ export class SearchRouter {
       };
     }
 
-    // Tavily patterns - factual
+    // Exa patterns - similarity
+    if (q.includes('similar to') || q.includes('like ') || q.includes('alternatives to') || q.includes('companies like')) {
+      return {
+        provider: 'exa',
+        confidence: 0.90,
+        reason: 'Similarity search query',
+        suggestedMode: 'similar',
+      };
+    }
+
+    // Firecrawl patterns - technical/documentation queries
+    if (q.includes('how to') || q.includes('tutorial') || q.includes('guide') ||
+        q.includes('documentation') || q.includes('example') || q.includes('best practices')) {
+      return {
+        provider: 'firecrawl',
+        confidence: 0.88,
+        reason: 'Technical/educational query benefits from deep content extraction',
+        suggestedMode: 'technical',
+        firecrawlOperation: 'search',
+      };
+    }
+
+    // Firecrawl patterns - comparison and detailed research
+    if (q.includes('compare') || q.includes('vs') || q.includes('versus') ||
+        q.includes('difference between') || q.includes('in detail') ||
+        q.includes('comprehensive') || q.includes('deep dive')) {
+      return {
+        provider: 'firecrawl',
+        confidence: 0.88,
+        reason: 'Comparison/detailed query benefits from comprehensive content',
+        suggestedMode: 'research',
+        firecrawlOperation: 'search',
+      };
+    }
+
+    // Tavily patterns - factual questions
     if (q.startsWith('who ') || q.startsWith('what is ') || q.startsWith('when ') || 
         q.startsWith('where ') || q.startsWith('how many ') || q.startsWith('how much ')) {
       return {
@@ -216,14 +305,26 @@ export class SearchRouter {
       };
     }
 
-    // Tavily patterns - current events
+    // Tavily patterns - current events and real-time data
     if (q.includes('latest') || q.includes('current') || q.includes('today') || 
-        q.includes('now') || q.includes('price') || q.includes('news')) {
+        q.includes('now') || q.includes('price') || q.includes('news') ||
+        q.includes('weather') || q.includes('stock')) {
       return {
         provider: 'tavily',
         confidence: 0.85,
         reason: 'Current/real-time information query',
         suggestedMode: 'search',
+      };
+    }
+
+    // Exa patterns - research and investigation
+    if (q.includes('research on') || q.includes('studies on') || 
+        q.includes('companies') || q.includes('startups')) {
+      return {
+        provider: 'exa',
+        confidence: 0.82,
+        reason: 'Research/investigation query',
+        suggestedMode: 'research',
       };
     }
 

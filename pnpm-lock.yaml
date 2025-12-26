@@ -122,6 +122,9 @@ importers:
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.1.5(@types/react@19.1.6))(@types/react@19.1.6)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      zod:
+        specifier: ^3.25.42
+        version: 3.25.42
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
@@ -4330,6 +4333,9 @@ packages:
   zod@3.25.42:
     resolution: {integrity: sha512-PcALTLskaucbeHc41tU/xfjfhcz8z0GdhhDcSgrCTmSazUuqnYqiXO63M0QUBVwpBlsLsNVn5qHSC5Dw3KZvaQ==}
 
+  zod@4.2.1:
+    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
+
 snapshots:
 
   '@ai-sdk/google@1.2.18(zod@3.25.42)':
@@ -6907,8 +6913,8 @@ snapshots:
       '@babel/parser': 7.28.5
       eslint: 9.27.0(jiti@2.4.2)
       hermes-parser: 0.25.1
-      zod: 3.25.42
-      zod-validation-error: 4.0.2(zod@3.25.42)
+      zod: 4.2.1
+      zod-validation-error: 4.0.2(zod@4.2.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -8918,8 +8924,10 @@ snapshots:
     dependencies:
       zod: 3.25.42
 
-  zod-validation-error@4.0.2(zod@3.25.42):
+  zod-validation-error@4.0.2(zod@4.2.1):
     dependencies:
-      zod: 3.25.42
+      zod: 4.2.1
 
   zod@3.25.42: {}
+
+  zod@4.2.1: {}

@@ -1,5 +1,5 @@
 import { Source } from '../langgraph-search-engine';
-import { FirecrawlClient } from '../firecrawl';
+import { FirecrawlClient, CrawlToolResult, MapToolResult, ScrapeToolResult } from '../firecrawl';
 import { TavilyClient, TavilySearchResponse } from './tavily-client';
 import { ExaClient, ExaSearchResult } from './exa-client';
 import { SemanticScholarClient, SemanticScholarSearchResult } from './semantic-scholar-client';
@@ -328,9 +328,132 @@ export class UnifiedSearchProvider {
   }
 
   /**
-   * Search with Firecrawl (existing behavior)
+   * Search with Firecrawl - routes to appropriate operation based on classification
    */
   private async searchWithFirecrawl(
+    query: string,
+    classification: QueryClassification,
+    options: UnifiedSearchOptions
+  ): Promise<UnifiedSearchResult> {
+    const operation = classification.firecrawlOperation || 'search';
+    
+    // Extract URL from query if present (for scrape/crawl/map operations)
+    const urlMatch = query.match(/https?:\/\/[^\s<>"')\]]+/);
+    const url = urlMatch ? urlMatch[0].replace(/[.,;:!?]+$/, '') : null;
+    
+    let sources: Source[] = [];
+    
+    switch (operation) {
+      case 'scrape': {
+        if (!url) {
+          // Fall back to search if no URL provided
+          return this.performFirecrawlSearch(query, classification, options);
+        }
+        
+        console.log(`[Firecrawl] Scraping URL: ${url}`);
+        const scrapeResult = await this.scrape(url, { onlyMainContent: true });
+        
+        if (scrapeResult.success && scrapeResult.markdown) {
+          sources = [{
+            url: scrapeResult.url,
+            title: scrapeResult.title || url,
+            content: scrapeResult.markdown,
+            quality: 1.0,
+          }];
+        }
+        break;
+      }
+      
+      case 'crawl': {
+        if (!url) {
+          return this.performFirecrawlSearch(query, classification, options);
+        }
+        
+        console.log(`[Firecrawl] Crawling website: ${url}`);
+        const crawlResult = await this.crawl(url, {
+          limit: Math.min(options.maxResults || 10, 15),
+          maxDepth: 2,
+        });
+        
+        if (crawlResult.success && crawlResult.pages.length > 0) {
+          sources = crawlResult.pages.map(page => ({
+            url: page.url,
+            title: page.title || page.url,
+            content: page.markdown,
+            quality: 0.9,
+          }));
+        }
+        break;
+      }
+      
+      case 'map': {
+        if (!url) {
+          return this.performFirecrawlSearch(query, classification, options);
+        }
+        
+        console.log(`[Firecrawl] Mapping website structure: ${url}`);
+        const mapResult = await this.map(url, {
+          limit: options.maxResults || 100,
+        });
+        
+        if (mapResult.success && mapResult.links.length > 0) {
+          // For map, return the discovered URLs as sources
+          sources = mapResult.links.slice(0, 20).map(link => ({
+            url: link,
+            title: link,
+            content: `Discovered URL: ${link}`,
+            quality: 0.5,
+          }));
+          
+          // Optionally scrape a few of the discovered URLs
+          const topUrls = mapResult.links.slice(0, 3);
+          const scrapePromises = topUrls.map(async (linkUrl) => {
+            try {
+              const result = await this.scrape(linkUrl, { onlyMainContent: true });
+              if (result.success && result.markdown) {
+                return {
+                  url: result.url,
+                  title: result.title || linkUrl,
+                  content: result.markdown,
+                  quality: 0.8,
+                };
+              }
+            } catch {
+              // Ignore scrape errors
+            }
+            return null;
+          });
+          
+          const scrapedResults = await Promise.allSettled(scrapePromises);
+          for (const result of scrapedResults) {
+            if (result.status === 'fulfilled' && result.value) {
+              sources.unshift(result.value);
+            }
+          }
+        }
+        break;
+      }
+      
+      case 'search':
+      default: {
+        return this.performFirecrawlSearch(query, classification, options);
+      }
+    }
+    
+    return {
+      sources,
+      provider: 'firecrawl',
+      classification,
+      metadata: {
+        totalResults: sources.length,
+      },
+    };
+  }
+
+  /**
+   * Perform a standard Firecrawl search operation
+   */
+  private async performFirecrawlSearch(
     query: string,
     classification: QueryClassification,
     options: UnifiedSearchOptions
@@ -364,7 +487,7 @@ export class UnifiedSearchProvider {
    * Get fallback provider when preferred is unavailable
    */
   private getFallbackProvider(preferred: SearchProvider): SearchProvider {
-    // Priority order for fallback
+    // Balanced fallback order - try each provider fairly
     const fallbackOrder: SearchProvider[] = ['tavily', 'firecrawl', 'exa'];
     
     for (const provider of fallbackOrder) {
@@ -407,6 +530,164 @@ export class UnifiedSearchProvider {
     return results
       .filter((r): r is PromiseFulfilledResult<UnifiedSearchResult> => r.status === 'fulfilled')
       .map(r => r.value);
+  }
+
+  // ==========================================================================
+  // Firecrawl Deep Extraction Tools
+  // ==========================================================================
+
+  /**
+   * Scrape a single URL and convert it to clean, LLM-ready markdown.
+   * Use this for deep extraction of specific pages like documentation, articles, or research papers.
+   */
+  async scrape(
+    url: string,
+    options?: {
+      onlyMainContent?: boolean;
+      includeLinks?: boolean;
+    }
+  ): Promise<ScrapeToolResult> {
+    return this.firecrawlClient.scrapeForLLM(url, {
+      onlyMainContent: options?.onlyMainContent ?? true,
+      includeLinks: options?.includeLinks ?? false,
+    });
+  }
+
+  /**
+   * Crawl an entire website or subsection and convert all pages to markdown.
+   * Use this for comprehensive research across documentation sites, research series, or technical wikis.
+   * WARNING: This is a heavier operation - use 'map' first to scout the site structure if unsure.
+   */
+  async crawl(
+    url: string,
+    options?: {
+      limit?: number;
+      maxDepth?: number;
+      allowBackwardLinks?: boolean;
+    }
+  ): Promise<CrawlToolResult> {
+    return this.firecrawlClient.crawl(url, {
+      limit: Math.min(options?.limit ?? 10, 25),
+      maxDepth: Math.min(options?.maxDepth ?? 2, 5),
+      allowBackwardLinks: options?.allowBackwardLinks ?? false,
+    });
+  }
+
+  /**
+   * Scout a website's structure by mapping all discoverable URLs.
+   * Use this BEFORE crawling to understand what content is available.
+   * Returns a list of URLs that can then be selectively scraped or crawled.
+   */
+  async map(
+    url: string,
+    options?: {
+      search?: string;
+      limit?: number;
+    }
+  ): Promise<MapToolResult> {
+    return this.firecrawlClient.mapUrl(url, {
+      search: options?.search,
+      limit: Math.min(options?.limit ?? 100, 1000),
+    });
+  }
+
+  /**
+   * Batch scrape multiple URLs in parallel.
+   * Returns results for all URLs, with failures marked individually.
+   */
+  async batchScrape(
+    urls: string[],
+    options?: {
+      onlyMainContent?: boolean;
+    }
+  ): Promise<ScrapeToolResult[]> {
+    const results = await Promise.allSettled(
+      urls.map(url =>
+        this.firecrawlClient.scrapeForLLM(url, {
+          onlyMainContent: options?.onlyMainContent ?? true,
+          includeLinks: false,
+        })
+      )
+    );
+
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      }
+      return {
+        success: false,
+        url: urls[index],
+        markdown: '',
+        error: result.reason instanceof Error ? result.reason.message : 'Failed to scrape',
+      };
+    });
+  }
+
+  /**
+   * Deep research a website: first map its structure, then selectively crawl relevant pages.
+   * This is useful for comprehensive documentation or wiki research.
+   */
+  async deepResearch(
+    url: string,
+    options?: {
+      searchFilter?: string;
+      maxPages?: number;
+      maxDepth?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    baseUrl: string;
+    discoveredUrls: number;
+    crawledPages: number;
+    pages: Array<{
+      url: string;
+      title?: string;
+      markdown: string;
+    }>;
+    error?: string;
+  }> {
+    try {
+      // First, map the website structure
+      const mapResult = await this.map(url, {
+        search: options?.searchFilter,
+        limit: 100,
+      });
+
+      if (!mapResult.success || mapResult.links.length === 0) {
+        return {
+          success: false,
+          baseUrl: url,
+          discoveredUrls: 0,
+          crawledPages: 0,
+          pages: [],
+          error: mapResult.error || 'No pages found to crawl',
+        };
+      }
+
+      // Then crawl the discovered URLs
+      const crawlResult = await this.crawl(url, {
+        limit: options?.maxPages ?? 10,
+        maxDepth: options?.maxDepth ?? 2,
+      });
+
+      return {
+        success: crawlResult.success,
+        baseUrl: url,
+        discoveredUrls: mapResult.totalLinks,
+        crawledPages: crawlResult.pagesCrawled,
+        pages: crawlResult.pages,
+        error: crawlResult.error,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        baseUrl: url,
+        discoveredUrls: 0,
+        crawledPages: 0,
+        pages: [],
+        error: error instanceof Error ? error.message : 'Deep research failed',
+      };
+    }
   }
 }
 

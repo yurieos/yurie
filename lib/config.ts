@@ -28,13 +28,22 @@ export const SEARCH_CONFIG = {
 
 // Multi-Provider Search Configuration
 export const PROVIDER_CONFIG = {
-  // Enable/disable multi-provider routing (set to false to use Firecrawl only)
+  // Enable/disable multi-provider routing
   ENABLE_MULTI_PROVIDER: true,
   
   // Default provider when routing is disabled or classification fails
   DEFAULT_PROVIDER: 'tavily' as const,
   
   // Provider-specific settings
+  FIRECRAWL: {
+    MAX_RESULTS: 10,
+    SCRAPE_WITH_SEARCH: true,             // Get markdown content with search results
+    ENABLE_DEEP_EXTRACTION: true,         // Use scrape/crawl/map when beneficial
+    AUTO_SCRAPE_THRESHOLD: 3,             // Auto-scrape top N results for more content
+    CRAWL_FOR_DOCUMENTATION: true,        // Use crawl for documentation sites
+    MAP_BEFORE_CRAWL: true,               // Map site structure before crawling
+  },
+  
   TAVILY: {
     SEARCH_DEPTH: 'advanced' as const,  // 'basic' | 'advanced'
     INCLUDE_ANSWER: true,                // Get pre-synthesized answer
