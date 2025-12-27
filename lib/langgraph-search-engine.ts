@@ -1,11 +1,10 @@
 import { StateGraph, END, START, Annotation, MemorySaver } from "@langchain/langgraph";
-import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { FirecrawlClient } from './firecrawl';
 import { ContextProcessor } from './context-processor';
 import { SEARCH_CONFIG, MODEL_CONFIG, PROVIDER_CONFIG } from './config';
 import { UnifiedSearchProvider, SearchProvider } from './providers';
 import { Source, SearchResult, SearchPhase, SearchEvent, ErrorType, SearchStep } from './types';
+import { ResponsesAPIClient, ResponseMessage } from './openai-responses';
 
 // Re-export types for backwards compatibility
 export type { Source, SearchResult, SearchPhase, SearchEvent, ErrorType, SearchStep };
@@ -149,6 +148,14 @@ const SearchStateAnnotation = Annotation.Root({
   preAnswer: Annotation<string | undefined>({
     reducer: (x, y) => y ?? x,
     default: () => undefined
+  }),
+  
+  // GPT-5.2 Chain-of-Thought tracking
+  // Stores the previous response ID to enable CoT persistence across turns
+  // This reduces re-reasoning, improves cache hit rates, and lowers latency
+  previousResponseId: Annotation<string | undefined>({
+    reducer: (x, y) => y ?? x,
+    default: () => undefined
   })
 });
 
@@ -167,8 +174,8 @@ export class LangGraphSearchEngine {
   private unifiedSearch: UnifiedSearchProvider;
   private contextProcessor: ContextProcessor;
   private graph: ReturnType<typeof this.buildGraph>;
-  private llm: ChatOpenAI;
-  private streamingLlm: ChatOpenAI;
+  private llm: ResponsesAPIClient;
+  private streamingLlm: ResponsesAPIClient;
   private checkpointer?: MemorySaver;
 
   constructor(firecrawl: FirecrawlClient, options?: { enableCheckpointing?: boolean }) {
@@ -176,23 +183,21 @@ export class LangGraphSearchEngine {
     this.unifiedSearch = new UnifiedSearchProvider(firecrawl);
     this.contextProcessor = new ContextProcessor();
     
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
-    }
-    
-    // Initialize LangChain models
-    this.llm = new ChatOpenAI({
-      modelName: MODEL_CONFIG.FAST_MODEL,
+    // Initialize GPT-5.2 Responses API clients
+    // Fast model for quick operations (query analysis, summarization)
+    this.llm = new ResponsesAPIClient({
+      model: MODEL_CONFIG.FAST_MODEL,
+      reasoning: { effort: MODEL_CONFIG.REASONING_EFFORT },
+      text: { verbosity: MODEL_CONFIG.VERBOSITY },
       temperature: MODEL_CONFIG.TEMPERATURE,
-      openAIApiKey: apiKey,
     });
     
-    this.streamingLlm = new ChatOpenAI({
-      modelName: MODEL_CONFIG.QUALITY_MODEL,
+    // Quality model for final synthesis (streaming)
+    this.streamingLlm = new ResponsesAPIClient({
+      model: MODEL_CONFIG.QUALITY_MODEL,
+      reasoning: { effort: MODEL_CONFIG.REASONING_EFFORT },
+      text: { verbosity: MODEL_CONFIG.VERBOSITY },
       temperature: MODEL_CONFIG.TEMPERATURE,
-      streaming: true,
-      openAIApiKey: apiKey,
     });
 
     // Enable checkpointing if requested
@@ -920,7 +925,8 @@ export class LangGraphSearchEngine {
         try {
           const sourcesToUse = state.processedSources || state.sources || [];
           
-          const answer = await generateStreamingAnswer(
+          // Generate answer with CoT tracking (pass previousResponseId for context persistence)
+          const answerResult = await generateStreamingAnswer(
             state.query,
             sourcesToUse,
             (chunk) => {
@@ -928,19 +934,21 @@ export class LangGraphSearchEngine {
                 eventCallback({ type: 'content-chunk', chunk });
               }
             },
-            state.context
+            state.context,
+            state.previousResponseId  // Pass previous response ID for CoT persistence
           );
           
-          // Generate follow-up questions
+          // Generate follow-up questions (using the new response ID for continued CoT)
           const followUpQuestions = await generateFollowUpQuestions(
             state.query,
-            answer,
+            answerResult.text,
             sourcesToUse,
             state.context
           );
           
           return {
-            finalAnswer: answer,
+            finalAnswer: answerResult.text,
+            previousResponseId: answerResult.responseId,  // Store for future CoT use
             followUpQuestions,
             phase: 'complete' as SearchPhase
           };
@@ -1116,6 +1124,8 @@ export class LangGraphSearchEngine {
         preAnswer: undefined,
         // URL sources (when user provides explicit URLs)
         urlSources: undefined,
+        // GPT-5.2 Chain-of-Thought tracking
+        previousResponseId: undefined,
       };
 
       // Configure with event callback
@@ -1166,8 +1176,8 @@ export class LangGraphSearchEngine {
       });
     }
     
-    const messages = [
-      new SystemMessage(`${this.getCurrentDateContext()}
+    const messages: ResponseMessage[] = [
+      { role: 'system', content: `${this.getCurrentDateContext()}
 
 Analyze the query. Output in this markdown format:
 
@@ -1182,12 +1192,12 @@ Rules:
 - Use short descriptive phrases, not full sentences
 - Never ask clarifying questions—proceed with reasonable assumptions
 - Refuse harmful/illegal requests
-- Do NOT include "Connection to prior topic" unless there is actual conversation history`),
-      new HumanMessage(`Query: "${query}"${contextPrompt}`)
+- Do NOT include "Connection to prior topic" unless there is actual conversation history` },
+      { role: 'user', content: `Query: "${query}"${contextPrompt}` }
     ];
     
-    const response = await this.llm.invoke(messages);
-    return response.content.toString();
+    const response = await this.llm.generateWithMessages(messages);
+    return response.text;
   }
 
   private async checkAnswersInSources(
@@ -1196,8 +1206,8 @@ Rules:
   ): Promise<typeof subQueries> {
     if (sources.length === 0) return subQueries;
     
-    const messages = [
-      new SystemMessage(`Check which questions have been answered by the provided sources.
+    const messages: ResponseMessage[] = [
+      { role: 'system', content: `Check which questions have been answered by the provided sources.
 
 For each question, determine:
 1. If the sources contain a direct answer
@@ -1243,8 +1253,8 @@ Return ONLY a JSON array, no markdown formatting or code blocks:
     "answer": "brief answer if found",
     "sources": ["urls that contain the answer"]
   }
-]`),
-      new HumanMessage(`Questions to check:
+]` },
+      { role: 'user', content: `Questions to check:
 ${subQueries.map(sq => sq.question).join('\n')}
 
 Sources:
@@ -1262,12 +1272,12 @@ ${sources.slice(0, SEARCH_CONFIG.MAX_SOURCES_TO_CHECK).map(s => {
   }
   
   return sourceInfo;
-}).join('\n---\n')}`)
+}).join('\n---\n')}` }
     ];
 
     try {
-      const response = await this.llm.invoke(messages);
-      let content = response.content.toString();
+      const response = await this.llm.generateWithMessages(messages);
+      let content = response.text;
       
       // Strip markdown code blocks if present
       content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
@@ -1295,8 +1305,8 @@ ${sources.slice(0, SEARCH_CONFIG.MAX_SOURCES_TO_CHECK).map(s => {
   }
 
   private async extractSubQueries(query: string): Promise<Array<{ question: string; searchQuery: string }>> {
-    const messages = [
-      new SystemMessage(`You are Yurie, an AI search assistant. Extract the individual factual questions from this query.
+    const messages: ResponseMessage[] = [
+      { role: 'system', content: `You are Yurie, an AI search assistant. Extract the individual factual questions from this query.
 
 IMPORTANT: 
 - If the user asks about YOU (your name, who you are, your capabilities), interpret this as a question about "Yurie".
@@ -1317,13 +1327,13 @@ Examples:
   {"question": "Who is Yurie?", "searchQuery": "Yurie AI search assistant"}
 ]
 
-Return ONLY a JSON array of {question, searchQuery} objects.`),
-      new HumanMessage(`Query: "${query}"`)
+Return ONLY a JSON array of {question, searchQuery} objects.` },
+      { role: 'user', content: `Query: "${query}"` }
     ];
 
     try {
-      const response = await this.llm.invoke(messages);
-      return JSON.parse(response.content.toString());
+      const response = await this.llm.generateWithMessages(messages);
+      return JSON.parse(response.text);
     } catch {
       // Fallback: treat as single query
       return [{ question: query, searchQuery: query }];
@@ -1357,8 +1367,8 @@ Return ONLY a JSON array of {question, searchQuery} objects.`),
       }
     }
     
-    const messages = [
-      new SystemMessage(`${this.getCurrentDateContext()}
+    const messages: ResponseMessage[] = [
+      { role: 'system', content: `${this.getCurrentDateContext()}
 
 Generate ALTERNATIVE search queries for questions that weren't answered in previous attempts.
 
@@ -1380,13 +1390,13 @@ Examples of alternative searches:
 - Original: "OpenAI Q3 2024 revenue" → Alternative: "OpenAI financial results 2024"
 - Original: "iPhone 15 Pro features" → Alternative: "latest iPhone specifications"
 
-Return one alternative search query per unanswered question, one per line.`),
-      new HumanMessage(`Generate alternative searches for these ${unansweredQueries.length} unanswered questions.`)
+Return one alternative search query per unanswered question, one per line.` },
+      { role: 'user', content: `Generate alternative searches for these ${unansweredQueries.length} unanswered questions.` }
     ];
 
     try {
-      const response = await this.llm.invoke(messages);
-      const result = response.content.toString();
+      const response = await this.llm.generateWithMessages(messages);
+      const result = response.text;
       
       const queries = result
         .split('\n')
@@ -1419,8 +1429,8 @@ Return one alternative search query per unanswered question, one per line.`),
 
   private async summarizeContent(content: string, query: string): Promise<string> {
     try {
-      const messages = [
-        new SystemMessage(`${this.getCurrentDateContext()}
+      const messages: ResponseMessage[] = [
+        { role: 'system', content: `${this.getCurrentDateContext()}
 
 Extract ONE key finding from this content that's SPECIFICALLY relevant to the search query.
 
@@ -1433,12 +1443,12 @@ Instructions:
 - Return just ONE sentence with a specific finding
 - Include numbers, dates, or specific details when available
 - Keep it under ${SEARCH_CONFIG.SUMMARY_CHAR_LIMIT} characters
-- Don't say "No relevant information was found" - find something relevant to the current search`),
-        new HumanMessage(`Query: "${query}"\n\nContent: ${content.slice(0, 2000)}`)
+- Don't say "No relevant information was found" - find something relevant to the current search` },
+        { role: 'user', content: `Query: "${query}"\n\nContent: ${content.slice(0, 2000)}` }
       ];
       
-      const response = await this.llm.invoke(messages);
-      return response.content.toString().trim();
+      const response = await this.llm.generateWithMessages(messages);
+      return response.text.trim();
     } catch {
       return '';
     }
@@ -1448,8 +1458,9 @@ Instructions:
     query: string,
     sources: Source[],
     onChunk: (chunk: string) => void,
-    context?: { query: string; response: string }[]
-  ): Promise<string> {
+    context?: { query: string; response: string }[],
+    previousResponseId?: string
+  ): Promise<{ text: string; responseId?: string }> {
     const sourcesText = sources
       .map((s, i) => {
         if (!s.content) return `[${i + 1}] ${s.title}\n[No content available]`;
@@ -1465,8 +1476,8 @@ Instructions:
       });
     }
     
-    const messages = [
-      new SystemMessage(`${this.getCurrentDateContext()}
+    const messages: ResponseMessage[] = [
+      { role: 'system', content: `${this.getCurrentDateContext()}
 
 You are Yurie, an elite research assistant producing publication-quality academic research papers. Your outputs follow the structure and conventions of peer-reviewed scholarly articles.
 
@@ -1605,30 +1616,20 @@ Summarize in formal prose:
 ---
 
 **Identity:** You are Yurie. Never claim to be another AI system.
-**Safety:** Decline requests for harmful, illegal, or unethical content.`),
-      new HumanMessage(`Question: "${query}"${contextPrompt}\n\nBased on these sources:\n${sourcesText}`)
+**Safety:** Decline requests for harmful, illegal, or unethical content.` },
+      { role: 'user', content: `Question: "${query}"${contextPrompt}\n\nBased on these sources:\n${sourcesText}` }
     ];
     
-    let fullText = '';
-    
     try {
-      const stream = await this.streamingLlm.stream(messages);
-      
-      for await (const chunk of stream) {
-        const content = chunk.content;
-        if (typeof content === 'string') {
-          fullText += content;
-          onChunk(content);
-        }
-      }
+      // Use the streaming API from ResponsesAPIClient with CoT tracking
+      const result = await this.streamingLlm.streamWithMessages(messages, onChunk, previousResponseId);
+      return { text: result.text, responseId: result.id };
     } catch {
       // Fallback to non-streaming if streaming fails
-      const response = await this.llm.invoke(messages);
-      fullText = response.content.toString();
-      onChunk(fullText);
+      const response = await this.llm.generateWithMessages(messages, previousResponseId);
+      onChunk(response.text);
+      return { text: response.text, responseId: response.id };
     }
-    
-    return fullText;
   }
 
   private async generateFollowUpQuestions(
@@ -1647,8 +1648,8 @@ Summarize in formal prose:
         contextPrompt += '\nConsider the full conversation flow when generating follow-ups.\n';
       }
       
-      const messages = [
-        new SystemMessage(`${this.getCurrentDateContext()}
+      const messages: ResponseMessage[] = [
+        { role: 'system', content: `${this.getCurrentDateContext()}
 
 You are Yurie, a researcher anticipating the next logical steps in this investigation.
 
@@ -1674,12 +1675,12 @@ Examples of good follow-up questions:
 - "Can you explain [technical term] in more detail?"
 - "What are the practical applications of this?"
 - "What are the main benefits and drawbacks?"
-- "How is this typically implemented?"`),
-        new HumanMessage(`Original query: "${originalQuery}"\n\nAnswer summary: ${answer.length > 1000 ? answer.slice(0, 1000) + '...' : answer}${contextPrompt}`)
+- "How is this typically implemented?"` },
+        { role: 'user', content: `Original query: "${originalQuery}"\n\nAnswer summary: ${answer.length > 1000 ? answer.slice(0, 1000) + '...' : answer}${contextPrompt}` }
       ];
       
-      const response = await this.llm.invoke(messages);
-      const questions = response.content.toString()
+      const response = await this.llm.generateWithMessages(messages);
+      const questions = response.text
         .split('\n')
         .map(q => q.trim())
         .filter(q => q.length > 0 && q.length < 80)

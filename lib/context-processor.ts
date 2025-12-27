@@ -1,7 +1,6 @@
 import { Source } from './types';
-import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
 import { MODEL_CONFIG } from './config';
+import { generateResponse } from './openai-responses';
 
 interface ProcessedSource extends Source {
   relevanceScore: number;
@@ -307,10 +306,9 @@ export class ContextProcessor {
     try {
       // No longer emit individual progress events
       
-      // Create a focused prompt for relevance-based summarization
-      
-      const result = await generateText({
-        model: openai(MODEL_CONFIG.QUALITY_MODEL),
+      // Create a focused prompt for relevance-based summarization using GPT-5.2 Responses API
+      const result = await generateResponse({
+        model: MODEL_CONFIG.QUALITY_MODEL,
         prompt: `You are a research assistant helping to extract the most relevant information from a webpage.
 
 User's question: "${query}"
@@ -331,6 +329,8 @@ Instructions:
 6. Target length: approximately ${targetLength} characters
 
 Provide a focused summary that would help answer the user's question:`,
+        reasoning: { effort: MODEL_CONFIG.REASONING_EFFORT },
+        text: { verbosity: MODEL_CONFIG.VERBOSITY },
         temperature: MODEL_CONFIG.TEMPERATURE,
       });
 
