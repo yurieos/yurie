@@ -35,6 +35,7 @@ import {
   Sparkles,
   ChevronLeft
 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper function to estimate reading time
 function getReadingTime(content: string): string {
@@ -478,7 +479,20 @@ function SourcesList({ sources }: { sources: Source[] }) {
   );
 }
 
-export function Chat() {
+interface ChatProps {
+  userId?: string;
+}
+
+// Message type for storage (without React nodes)
+interface StorableMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  searchResults?: string;
+}
+
+export function Chat({ userId }: ChatProps) {
   const [messages, setMessages] = useState<Array<{
     id: string;
     role: 'user' | 'assistant';
@@ -493,7 +507,9 @@ export function Chat() {
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
   const [, setIsCheckingEnv] = useState<boolean>(true);
   const [pendingQuery, setPendingQuery] = useState<string>('');
+  const [conversationId, setConversationId] = useState<string>(() => uuidv4());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const lastSavedRef = useRef<string>('');
 
   // Check for environment variables on mount
   useEffect(() => {
@@ -518,6 +534,127 @@ export function Chat() {
 
     checkEnvironment();
   }, []);
+
+  // Save conversation when messages change (debounced)
+  useEffect(() => {
+    if (!userId || messages.length === 0) return;
+
+    // Only save if we have actual content to save
+    const messagesToSave: StorableMessage[] = messages
+      .filter(msg => typeof msg.content === 'string' || msg.searchResults)
+      .map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: typeof msg.content === 'string' ? msg.content : (msg.searchResults || ''),
+        timestamp: parseInt(msg.id) || Date.now(),
+        searchResults: msg.searchResults,
+      }));
+
+    if (messagesToSave.length === 0) return;
+
+    // Skip if nothing changed
+    const currentState = JSON.stringify(messagesToSave);
+    if (currentState === lastSavedRef.current) return;
+
+    const saveTimer = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            conversationId,
+            messages: messagesToSave,
+            title: messagesToSave[0]?.content?.slice(0, 60),
+          }),
+        });
+
+        if (response.ok) {
+          lastSavedRef.current = currentState;
+          // Notify sidebar to refresh
+          window.dispatchEvent(new CustomEvent('conversationUpdated'));
+        }
+      } catch (error) {
+        console.error('Failed to save conversation:', error);
+      }
+    }, 1000); // Debounce by 1 second
+
+    return () => clearTimeout(saveTimer);
+  }, [messages, userId, conversationId]);
+
+  // Handle new chat event
+  useEffect(() => {
+    const handleNewChat = () => {
+      setMessages([]);
+      setConversationId(uuidv4());
+      lastSavedRef.current = '';
+    };
+
+    window.addEventListener('newChat', handleNewChat);
+    return () => window.removeEventListener('newChat', handleNewChat);
+  }, []);
+
+  // Handle load conversation event
+  useEffect(() => {
+    const handleLoadConversation = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const targetConversationId = customEvent.detail.conversationId;
+
+      if (!userId) return;
+
+      try {
+        const response = await fetch(
+          `/api/conversations?userId=${userId}&conversationId=${targetConversationId}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const loadedMessages = data.messages || [];
+
+          // Convert stored messages back to display format
+          const displayMessages = loadedMessages.map((msg: StorableMessage) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.role === 'assistant' && msg.searchResults 
+              ? <div className="prose dark:prose-invert max-w-none">
+                  <MarkdownRenderer content={msg.content || msg.searchResults} />
+                </div>
+              : msg.content,
+            isSearch: false,
+            searchResults: msg.searchResults,
+          }));
+
+          setMessages(displayMessages);
+          setConversationId(targetConversationId);
+          lastSavedRef.current = JSON.stringify(loadedMessages);
+        }
+      } catch (error) {
+        console.error('Failed to load conversation:', error);
+        toast.error('Failed to load conversation');
+      }
+    };
+
+    window.addEventListener('loadConversation', handleLoadConversation);
+    return () => window.removeEventListener('loadConversation', handleLoadConversation);
+  }, [userId]);
+
+  // Handle conversation deleted event
+  useEffect(() => {
+    const handleConversationDeleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const deletedId = customEvent.detail.conversationId;
+
+      if (deletedId === conversationId) {
+        // Current conversation was deleted, start fresh
+        setMessages([]);
+        setConversationId(uuidv4());
+        lastSavedRef.current = '';
+      }
+    };
+
+    window.addEventListener('conversationDeleted', handleConversationDeleted);
+    return () => window.removeEventListener('conversationDeleted', handleConversationDeleted);
+  }, [conversationId]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -767,12 +904,12 @@ export function Chat() {
   };
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col flex-1 h-full overflow-hidden">
       {messages.length === 0 ? (
         // Center input when no messages
-        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 pt-16">
-          <div className="w-full max-w-4xl">
-            <form onSubmit={handleSubmit}>
+        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+          <div className="w-full max-w-2xl flex flex-col items-center">
+            <form onSubmit={handleSubmit} className="w-full">
               <div className="relative">
                 <input
                   type="text"
@@ -797,7 +934,7 @@ export function Chat() {
               </div>
             </form>
             
-            <div className="mt-8">
+            <div className="mt-8 w-full">
               <Suggestions 
                 onValueChange={setInput}
                 inputValue={input}

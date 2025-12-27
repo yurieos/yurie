@@ -27,8 +27,8 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH = "20rem"
+const SIDEBAR_WIDTH_MOBILE = "20rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -180,28 +180,67 @@ function Sidebar({
     )
   }
 
+  // Use floating sidebar style for both mobile and desktop
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          data-sidebar="sidebar"
+      <>
+        {/* Backdrop overlay */}
+        <div
+          data-slot="sidebar-overlay"
+          className={cn(
+            "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-linear",
+            openMobile ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+          onClick={() => setOpenMobile(false)}
+        />
+        {/* Floating sidebar */}
+        <div
+          className="group peer text-sidebar-foreground"
+          data-state={openMobile ? "expanded" : "collapsed"}
+          data-collapsible={openMobile ? "" : collapsible}
+          data-variant={variant}
+          data-side={side}
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+          <div
+            data-slot="sidebar-container"
+            data-variant={variant}
+            className={cn(
+              "fixed inset-y-0 z-50 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear",
+              side === "left"
+                ? openMobile 
+                  ? "left-0" 
+                  : "left-[calc(var(--sidebar-width)*-1)]"
+                : openMobile
+                  ? "right-0"
+                  : "right-[calc(var(--sidebar-width)*-1)]",
+              variant === "floating" || variant === "inset"
+                ? "p-2"
+                : "",
+              className
+            )}
+            style={
+              {
+                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              } as React.CSSProperties
+            }
+            {...props}
+          >
+            <div
+              data-sidebar="sidebar"
+              data-slot="sidebar-inner"
+              data-variant={variant}
+              className={cn(
+                "bg-sidebar flex h-full w-full flex-col",
+                variant === "floating" && "border-sidebar-border rounded-lg border shadow-sm"
+              )}
+            >
+              {children}
+            </div>
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -228,6 +267,7 @@ function Sidebar({
       />
       <div
         data-slot="sidebar-container"
+        data-variant={variant}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
@@ -244,6 +284,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
+          data-variant={variant}
           className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
         >
           {children}
@@ -266,14 +307,14 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("size-7", className)}
+      className={cn("size-8", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <PanelLeftIcon className="size-5" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )

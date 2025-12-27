@@ -63,14 +63,14 @@
   --chart-5: #735a3a;
   --popover: #3a322c;
   --primary: #c0a080;
-  --sidebar: #2d2621;
+  --sidebar: #252019;
   --secondary: #4a4039;
   --background: #2d2621;
   --foreground: #ece5d8;
   --destructive: #b54a35;
   --sidebar-ring: #c0a080;
-  --sidebar-accent: #59493e;
-  --sidebar-border: #4a4039;
+  --sidebar-accent: #3a322c;
+  --sidebar-border: #3a322c;
   --card-foreground: #ece5d8;
   --sidebar-primary: #c0a080;
   --muted-foreground: #c5bcac;
@@ -141,13 +141,17 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-sidebar text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "liga" 1;
     line-height: 1.7;
     letter-spacing: 0.01em;
+    height: 100%;
+    overflow: hidden;
   }
 }
 
@@ -511,5 +515,150 @@
 
 .markdown-content li:last-child {
   margin-bottom: 0;
+}
+
+/* ===== CLERK - Clean Theme ===== */
+
+/* Hide development mode indicator */
+.cl-internal-b3fm6y,
+[data-localization-key="badge__default"] {
+  display: none !important;
+}
+
+/* Remove striped patterns */
+.cl-navbar::before,
+.cl-navbar::after,
+.cl-card::before,
+.cl-card::after {
+  display: none !important;
+  background: none !important;
+}
+
+/* ===== Floating Sidebar Enhancements ===== */
+[data-variant="floating"] [data-sidebar="sidebar"] {
+  background: var(--sidebar);
+  backdrop-filter: blur(12px);
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.15),
+    0 4px 10px -3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px var(--sidebar-border);
+}
+
+.dark [data-variant="floating"] [data-sidebar="sidebar"] {
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.4),
+    0 4px 10px -3px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--sidebar-border);
+}
+
+/* Floating sidebar container padding */
+[data-variant="floating"][data-slot="sidebar-container"] {
+  padding: 0.75rem;
+}
+
+/* ===== Inset Sidebar Enhancements ===== */
+/* Inset variant - sidebar styling */
+[data-variant="inset"] [data-sidebar="sidebar"] {
+  background: var(--sidebar);
+}
+
+/* Sidebar menu item hover effects */
+[data-sidebar="menu-button"]:hover {
+  background: var(--sidebar-accent);
+}
+
+/* Sidebar scrollbar styling */
+[data-sidebar="content"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sidebar-border) transparent;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar-thumb {
+  background: var(--sidebar-border);
+  border-radius: 3px;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
+  background: var(--sidebar-accent);
+}
+
+/* Mobile floating sidebar styling */
+[data-mobile="true"] [data-sidebar="header"] {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+}
+
+[data-mobile="true"] [data-sidebar="content"] {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+/* Mobile floating sidebar - same shadows as desktop */
+[data-mobile="true"] [data-variant="floating"][data-slot="sidebar-inner"] {
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.15),
+    0 4px 10px -3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px var(--sidebar-border);
+}
+
+.dark [data-mobile="true"] [data-variant="floating"][data-slot="sidebar-inner"] {
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.4),
+    0 4px 10px -3px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--sidebar-border);
+}
+
+/* Mobile inset sidebar styling */
+[data-mobile="true"] [data-variant="inset"][data-slot="sidebar-inner"] {
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.15),
+    0 4px 10px -3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px var(--sidebar-border);
+}
+
+.dark [data-mobile="true"] [data-variant="inset"][data-slot="sidebar-inner"] {
+  box-shadow: 
+    0 8px 30px -5px rgba(0, 0, 0, 0.4),
+    0 4px 10px -3px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--sidebar-border);
+}
+
+/* Larger touch targets on mobile */
+@media (max-width: 768px) {
+  [data-sidebar="menu-button"] {
+    min-height: 56px;
+  }
+  
+  [data-sidebar="menu-button"]:active {
+    background: var(--sidebar-accent);
+  }
+}
+
+/* Hidden scrollbars */
+.cl-scrollBox,
+.cl-pageScrollBox {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.cl-scrollBox::-webkit-scrollbar,
+.cl-pageScrollBox::-webkit-scrollbar {
+  display: none;
+}
+
+/* Remove section dividers */
+.cl-profileSection {
+  border-bottom: none !important;
+}
+
+/* Remove navbar border */
+.cl-navbar {
+  border-right: none !important;
 }
 

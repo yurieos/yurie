@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
+import { ClerkProviderWrapper } from "@/components/clerk-provider-wrapper";
 
 const libreBaskerville = Libre_Baskerville({
   variable: "--font-sans",
@@ -59,29 +60,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="h-svh overflow-hidden">
       <head />
       <body
         suppressHydrationWarning={true}
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
+          "h-full overflow-hidden bg-sidebar font-sans antialiased",
           libreBaskerville.variable,
           lora.variable,
           ibmPlexMono.variable,
           spaceGrotesk.variable
         )}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <main className="">
-            {children}
-          </main>
-          <Toaster />
-        </ThemeProvider>
+        <ClerkProviderWrapper>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <main className="h-full">
+              {children}
+            </main>
+            <Toaster />
+          </ThemeProvider>
+        </ClerkProviderWrapper>
       </body>
     </html>
   );

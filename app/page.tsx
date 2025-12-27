@@ -1,31 +1,62 @@
 import { Chat } from './chat';
 import { ModeToggle } from '@/components/mode-toggle';
+import { AuthHeader } from '@/components/auth-header';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { ConversationSidebar } from '@/components/conversation-sidebar';
 
-export default function Home() {
+// Check if Clerk is configured
+const isClerkConfigured = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+export default async function Home() {
+  let userId: string | null = null;
+  
+  // Only try to get auth if Clerk is configured
+  if (isClerkConfigured) {
+    try {
+      const { auth } = await import('@clerk/nextjs/server');
+      const authResult = await auth();
+      userId = authResult.userId;
+    } catch {
+      // Clerk not configured or error, continue without auth
+    }
+  }
+  
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header with logo */}
-      <header className="px-4 sm:px-6 lg:px-8 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <a
-            href="/"
-            className="flex items-center gap-2"
-          >
-            <span className="text-xl font-bold tracking-tight text-foreground font-space lowercase">
-              <span className="text-primary">
-                yurie
-              </span>
-            </span>
-          </a>
-          <ModeToggle />
+    <SidebarProvider defaultOpen={true}>
+      {/* Inset Sidebar */}
+      {isClerkConfigured && userId && (
+        <ConversationSidebar userId={userId} />
+      )}
+      
+      <SidebarInset className="overflow-hidden">
+        {/* Header with logo - matches sidebar header height */}
+        <header className="h-16 shrink-0 px-4 flex items-center border-b border-border/50">
+          <div className="flex-1 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AuthHeader userId={userId} position="left" />
+              <a
+                href="/"
+                className="flex items-center gap-2"
+              >
+                <span className="text-xl font-bold tracking-tight text-foreground font-space lowercase">
+                  <span className="text-primary">
+                    yurie
+                  </span>
+                </span>
+              </a>
+            </div>
+            <div className="flex items-center gap-3">
+              <ModeToggle />
+              <AuthHeader userId={userId} position="right" />
+            </div>
+          </div>
+        </header>
+
+        {/* Main content wrapper */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Chat userId={userId || undefined} />
         </div>
-      </header>
-
-      {/* Main content wrapper */}
-      <div className="flex-1 flex flex-col">
-        <Chat />
-      </div>
-
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
