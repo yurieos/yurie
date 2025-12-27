@@ -148,7 +148,7 @@ export const Suggestions = memo(function SuggestionsComponent({
   );
 
   return (
-    <div className="min-h-[220px] flex flex-col justify-start">
+    <div className="min-h-[220px] flex flex-col items-center justify-start">
       <AnimatePresence mode="popLayout">
         {showCategorySuggestions ? suggestionsList : suggestionsGrid}
       </AnimatePresence>
