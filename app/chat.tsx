@@ -104,7 +104,7 @@ function SourceDetailView({
                   className="w-6 h-6 rounded"
                   onError={(e) => {
                     const img = e.target as HTMLImageElement;
-                    img.src = getDefaultFavicon();
+                    img.src = getDefaultFavicon(source.url);
                     markFaviconFailed(source.url);
                   }}
                 />
@@ -280,7 +280,7 @@ function SourcesList({ sources }: { sources: Source[] }) {
                     style={{ zIndex: 5 - i }}
                     onError={(e) => {
                       const img = e.target as HTMLImageElement;
-                      img.src = getDefaultFavicon();
+                      img.src = getDefaultFavicon(source.url);
                       markFaviconFailed(source.url);
                     }}
                   />
@@ -423,7 +423,7 @@ function SourcesList({ sources }: { sources: Source[] }) {
                                 className="w-5 h-5"
                                 onError={(e) => {
                                   const img = e.target as HTMLImageElement;
-                                  img.src = getDefaultFavicon();
+                                  img.src = getDefaultFavicon(source.url);
                                   markFaviconFailed(source.url);
                                 }}
                               />

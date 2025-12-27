@@ -9,6 +9,24 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Loader2, Check, ChevronRight, ChevronDown, Clock, AlertCircle, FileText, Search, Zap, FlaskConical, Flame } from 'lucide-react';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 
+// Helper function to safely extract hostname from URL
+function safeGetHostname(url: string): string {
+  if (!url) return 'Unknown source';
+  try {
+    // Handle URLs that might not have a protocol
+    const urlWithProtocol = url.startsWith('http') ? url : `https://${url}`;
+    return new URL(urlWithProtocol).hostname;
+  } catch {
+    // If URL parsing fails, try to extract domain-like pattern
+    const domainMatch = url.match(/(?:https?:\/\/)?([^\/\s]+)/);
+    if (domainMatch && domainMatch[1]) {
+      return domainMatch[1];
+    }
+    // Last resort: return truncated URL or placeholder
+    return url.length > 30 ? url.slice(0, 30) + '...' : url || 'Unknown source';
+  }
+}
+
 // Component for animated thinking line that cycles through messages
 function AnimatedThinkingLine({ messages }: { messages: string[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -62,7 +80,7 @@ function AnimatedThinkingLine({ messages }: { messages: string[] }) {
             className={`w-5 h-5 rounded transition-all duration-300 ${isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}`}
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              img.src = getDefaultFavicon();
+              img.src = getDefaultFavicon(currentUrl);
               markFaviconFailed(currentUrl);
             }}
           />
@@ -174,13 +192,13 @@ function SourceProcessingLine({ url, stage, summary }: {
         className="w-4 h-4 rounded flex-shrink-0 mt-0.5"
         onError={(e) => {
           const img = e.target as HTMLImageElement;
-          img.src = getDefaultFavicon();
+          img.src = getDefaultFavicon(url);
           markFaviconFailed(url);
         }}
       />
       <div className="flex-1 min-w-0">
         <div className="font-medium text-muted-foreground truncate">
-          {new URL(url).hostname}
+          {safeGetHostname(url)}
         </div>
         {stage === 'complete' ? (
           summary ? (
@@ -345,7 +363,7 @@ function ProgressHeader({
                     style={{ zIndex: 3 - i }}
                     onError={(e) => {
                       const img = e.target as HTMLImageElement;
-                      img.src = getDefaultFavicon();
+                      img.src = getDefaultFavicon(url);
                       markFaviconFailed(url);
                     }}
                   />
@@ -442,7 +460,7 @@ function ProgressHeader({
                     className="w-[18px] h-[18px] rounded-full border-2 border-card bg-card shadow-sm object-cover"
                     onError={(e) => {
                       const img = e.target as HTMLImageElement;
-                      img.src = getDefaultFavicon();
+                      img.src = getDefaultFavicon(url);
                       markFaviconFailed(url);
                     }}
                   />
@@ -1142,7 +1160,7 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
                 className="w-5 h-5 mt-0.5 rounded flex-shrink-0"
                 onError={(e) => {
                   const img = e.target as HTMLImageElement;
-                  img.src = getDefaultFavicon();
+                  img.src = getDefaultFavicon(singleSourceUrl);
                   markFaviconFailed(singleSourceUrl);
                 }}
               />
@@ -1251,13 +1269,13 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
             className="w-5 h-5 mt-0.5 flex-shrink-0 rounded"
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              img.src = getDefaultFavicon();
+              img.src = getDefaultFavicon(event.url);
               markFaviconFailed(event.url);
             }}
           />
           <div className="flex-1">
             <div className="text-sm text-foreground">
-              Browsing <span className="font-medium text-primary">{new URL(event.url).hostname}</span> for &quot;{event.query}&quot;
+              Browsing <span className="font-medium text-primary">{safeGetHostname(event.url)}</span> for &quot;{event.query}&quot;
             </div>
           </div>
         </div>

@@ -82,7 +82,7 @@ export function CitationTooltip({ sources }: CitationTooltipProps) {
             className="w-5 h-5 mt-0.5 flex-shrink-0"
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              img.src = getDefaultFavicon();
+              img.src = getDefaultFavicon(tooltip.source.url);
               markFaviconFailed(tooltip.source.url);
             }}
           />
