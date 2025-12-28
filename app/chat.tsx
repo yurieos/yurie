@@ -9,6 +9,7 @@ import { MarkdownRenderer } from './markdown-renderer';
 import { CitationTooltip } from './citation-tooltip';
 import Image from 'next/image';
 import { getFaviconUrl, getDefaultFavicon, markFaviconFailed } from '@/lib/favicon-utils';
+import { getHostname, getReadingTime, getWordCount } from '@/lib/url-utils';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Suggestions } from "@/components/suggestions";
@@ -36,29 +38,6 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-
-// Helper function to estimate reading time
-function getReadingTime(content: string): string {
-  const wordsPerMinute = 200;
-  const words = content.trim().split(/\s+/).length;
-  const minutes = Math.ceil(words / wordsPerMinute);
-  return minutes === 1 ? '1 min read' : `${minutes} min read`;
-}
-
-// Helper function to get word count
-function getWordCount(content: string): string {
-  const words = content.trim().split(/\s+/).length;
-  return words.toLocaleString() + ' words';
-}
-
-// Helper function to safely get hostname from URL
-function getHostname(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
 
 // Individual source detail view
 function SourceDetailView({ 
@@ -96,7 +75,7 @@ function SourceDetailView({
           
           <div className="flex items-start gap-3">
             <div className="relative flex-shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+              <IconBadge>
                 <Image 
                   src={getFaviconUrl(source.url)} 
                   alt=""
@@ -109,7 +88,7 @@ function SourceDetailView({
                     markFaviconFailed(source.url);
                   }}
                 />
-              </div>
+              </IconBadge>
               <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                 {index + 1}
               </span>
@@ -338,9 +317,9 @@ function SourcesList({ sources }: { sources: Source[] }) {
               <div className="p-5 pb-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                    <IconBadge>
                       <BookOpen className="w-5 h-5 text-primary" />
-                    </div>
+                    </IconBadge>
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">Sources</h3>
                       <p className="text-xs text-muted-foreground">{sources.length} pages researched</p>

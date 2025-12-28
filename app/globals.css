@@ -154,6 +154,34 @@
   background: var(--background);
 }
 
+/* ============================================
+   Semantic Utility Classes
+   ============================================ */
+
+/* Interactive button/element - consistent press feedback */
+.interactive {
+  @apply active:scale-95 transition-all cursor-pointer touch-manipulation;
+}
+
+/* Card surface - consistent card styling */
+.card-surface {
+  @apply bg-card border border-border rounded-lg;
+}
+
+/* Panel header - consistent panel headers */
+.panel-header {
+  @apply flex-shrink-0 border-b border-border;
+}
+
+/* Muted link - subtle interactive text */
+.link-muted {
+  @apply text-muted-foreground hover:text-foreground transition-colors cursor-pointer;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
 /* Animated gradient text */
 @keyframes text {
   0% {
