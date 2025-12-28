@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  CaretRight,
-  ChatTeardropText,
-  ClockCounterClockwise,
+  ChevronRight,
+  MessageCircle,
+  Clock,
   Plus, 
-  Trash, 
-  SignOut,
-  Gear
-} from '@phosphor-icons/react';
+  Trash2, 
+  LogOut,
+  Settings
+} from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -189,7 +189,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                 className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar-accent transition-all duration-200 group cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-lg bg-sidebar-accent group-hover:bg-sidebar-accent/80 flex items-center justify-center transition-colors">
-                  <Gear className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors" weight="bold" />
+                  <Settings className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-sidebar-foreground">Manage account</span>
@@ -207,7 +207,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar-accent transition-all duration-200 group cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-lg bg-sidebar-accent group-hover:bg-destructive/20 flex items-center justify-center transition-colors">
-                    <SignOut className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-destructive transition-colors" weight="bold" />
+                    <LogOut className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-destructive transition-colors" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-sidebar-foreground group-hover:text-destructive transition-colors">Sign out</span>
@@ -225,10 +225,10 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
           <SidebarGroupContent className="py-0">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200
-                text-sidebar-foreground bg-sidebar-accent hover:bg-sidebar-accent/80 active:scale-[0.98]"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg interactive
+                text-sidebar-foreground bg-sidebar-accent hover:bg-sidebar-accent/80"
             >
-              <Plus className="h-4 w-4" weight="bold" />
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
               <span className="text-sm font-medium">New Chat</span>
             </button>
           </SidebarGroupContent>
@@ -237,10 +237,10 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
         <SidebarGroup className="flex-1 relative pt-2">
           <button
             onClick={() => setHistoryExpanded(!historyExpanded)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200
-              text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent active:scale-[0.98]"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg interactive
+              text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
-            <ClockCounterClockwise className="h-4 w-4" weight="bold" />
+            <Clock className="h-4 w-4" />
             <span className="text-xs uppercase tracking-wider font-medium">History</span>
             <div className="ml-auto flex items-center gap-2">
               {conversations.length > 0 && (
@@ -248,9 +248,8 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                   {conversations.length}
                 </span>
               )}
-              <CaretRight 
-                className={`h-3 w-3 transition-transform duration-200 ${historyExpanded ? 'rotate-90' : ''}`} 
-                weight="bold"
+              <ChevronRight 
+                className={`h-3 w-3 transition-transform duration-200 ${historyExpanded ? 'rotate-90' : ''}`}
               />
             </div>
           </button>
@@ -269,7 +268,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                 ) : conversations.length === 0 ? (
                   <div className="text-center py-8 px-4">
                     <div className="w-12 h-12 mx-auto rounded-xl bg-sidebar-accent/40 flex items-center justify-center mb-3">
-                      <ChatTeardropText className="h-6 w-6 text-sidebar-foreground/30" />
+                      <MessageCircle className="h-6 w-6 text-sidebar-foreground/30" />
                     </div>
                     <p className="text-[13px] text-sidebar-foreground/60">No conversations yet</p>
                     <p className="text-xs text-sidebar-foreground/40 mt-1">
@@ -281,7 +280,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                     <SidebarMenuItem key={conversation.id} className="relative group/item">
                       <SidebarMenuButton
                         onClick={() => handleLoadConversation(conversation.id)}
-                        className="h-auto py-2 px-3 rounded-lg hover:bg-sidebar-accent active:scale-[0.98] transition-all duration-200"
+                        className="h-auto py-2 px-3 rounded-lg hover:bg-sidebar-accent interactive"
                         tooltip={conversation.title}
                       >
                         <div className="flex-1 min-w-0">
@@ -302,7 +301,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                           className="flex-shrink-0 p-1.5 -mr-1 rounded-md opacity-100 md:opacity-0 group-hover/item:opacity-100 hover:bg-destructive/10 active:bg-destructive/20 text-sidebar-foreground/40 hover:text-destructive transition-all cursor-pointer touch-manipulation"
                           aria-label="Delete conversation"
                         >
-                          <Trash className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </div>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -43,7 +43,7 @@ export function AuthHeader({ userId, position }: AuthHeaderProps) {
   if (position === 'left') {
     return (
       <SignedIn>
-        <SidebarTrigger className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform touch-manipulation" />
+        <SidebarTrigger className="link-muted interactive" />
       </SignedIn>
     );
   }
@@ -53,7 +53,7 @@ export function AuthHeader({ userId, position }: AuthHeaderProps) {
   return (
     <SignedOut>
       <SignInButton mode="modal">
-        <button className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 active:scale-95 rounded-full transition-all cursor-pointer touch-manipulation">
+        <button className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-full transition-all interactive">
           Sign in
         </button>
       </SignInButton>

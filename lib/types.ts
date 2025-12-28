@@ -46,3 +46,35 @@ export type SearchEvent =
   | { type: 'source-complete'; url: string; summary: string }
   | { type: 'provider-selected'; provider: string; reason: string };
 
+// ============================================
+// Message Types for Conversations
+// ============================================
+
+export type MessageType = 'text' | 'search-display' | 'markdown' | 'error';
+
+// Message type for storage (without React nodes)
+export interface StorableMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  searchResults?: string;
+  type?: MessageType;
+  sources?: Source[];
+  followUpQuestions?: string[];
+  searchEvents?: SearchEvent[];
+}
+
+// Message type for display - stores raw data, not JSX
+export interface DisplayMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  type: MessageType;
+  content: string;
+  isStreaming?: boolean;
+  sources?: Source[];
+  followUpQuestions?: string[];
+  searchEvents?: SearchEvent[];
+  searchResults?: string;
+}
+

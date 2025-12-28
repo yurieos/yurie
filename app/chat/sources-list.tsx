@@ -109,7 +109,7 @@ export function SourcesList({ sources }: SourcesListProps) {
         </div>
         <button
           onClick={() => setShowSourcesPanel(true)}
-          className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+          className="group flex items-center gap-2 text-sm link-muted"
         >
           <span>View {sources.length} sources & page contents</span>
           <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -160,7 +160,7 @@ export function SourcesList({ sources }: SourcesListProps) {
                   </div>
                   <button
                     onClick={() => setShowSourcesPanel(false)}
-                    className="p-2 hover:bg-accent rounded-full transition-colors cursor-pointer"
+                    className="btn-icon-ghost p-2"
                   >
                     <X className="w-5 h-5 text-muted-foreground" />
                   </button>
@@ -220,7 +220,7 @@ export function SourcesList({ sources }: SourcesListProps) {
                       <div 
                         key={originalIndex}
                         onClick={() => setSelectedSourceIndex(originalIndex)}
-                        className="group relative p-3.5 rounded-2xl border border-border hover:border-primary/30 bg-card hover:bg-accent/30 cursor-pointer transition-all duration-200 hover:shadow-md source-card-gradient"
+                        className="group relative p-3.5 card-surface-interactive source-card-gradient"
                         style={{
                           animationDelay: `${i * 50}ms`,
                         }}

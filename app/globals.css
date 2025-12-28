@@ -48,6 +48,59 @@
   --sidebar-foreground: #4a3f35;
   --sidebar-accent-foreground: #4a3f35;
   --sidebar-primary-foreground: #ffffff;
+  
+  /* ============================================
+     Design Tokens: Typography Scale
+     ============================================ */
+  --text-2xs: 0.625rem;   /* 10px - badges, overflow counts */
+  --text-xs: 0.6875rem;   /* 11px - labels, captions */
+  --text-sm: 0.8125rem;   /* 13px - body small */
+  --text-base: 0.875rem;  /* 14px - body default */
+  --text-md: 1rem;        /* 16px - body large */
+  --text-lg: 1.125rem;    /* 18px - headings */
+  
+  /* ============================================
+     Design Tokens: Icon Sizes
+     ============================================ */
+  --icon-2xs: 0.625rem;   /* 10px */
+  --icon-xs: 0.75rem;     /* 12px */
+  --icon-sm: 1rem;        /* 16px */
+  --icon-md: 1.25rem;     /* 20px */
+  
+  /* ============================================
+     Design Tokens: Spacing Scale (4px base)
+     ============================================ */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  
+  /* ============================================
+     Design Tokens: Z-Index Scale
+     ============================================ */
+  --z-base: 0;
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-modal: 200;
+  --z-popover: 300;
+  --z-tooltip: 400;
+  --z-toast: 500;
+  
+  /* ============================================
+     Design Tokens: Transition Presets
+     ============================================ */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
 }
 
 .dark {
@@ -158,24 +211,247 @@
    Semantic Utility Classes
    ============================================ */
 
-/* Interactive button/element - consistent press feedback */
-.interactive {
-  @apply active:scale-95 transition-all cursor-pointer touch-manipulation;
-}
+@layer components {
+  /* ============================================
+     Typography Utilities
+     ============================================ */
+  
+  /* Label text - uppercase tracking */
+  .text-label {
+    @apply text-[11px] font-semibold uppercase tracking-wider;
+  }
+  
+  /* Caption text - muted small text */
+  .text-caption {
+    @apply text-[11px] text-muted-foreground font-medium;
+  }
+  
+  /* Body small text */
+  .text-body-sm {
+    @apply text-[13px] leading-relaxed;
+  }
+  
+  /* ============================================
+     Icon Size Utilities
+     ============================================ */
+  
+  /* Icon 2xs - 10px (badges, overflow counts) */
+  .icon-2xs {
+    @apply w-2.5 h-2.5;
+  }
+  
+  /* Icon xs - 12px (inline icons, most common) */
+  .icon-xs {
+    @apply w-3 h-3;
+  }
+  
+  /* Icon sm - 16px (standard buttons) */
+  .icon-sm {
+    @apply w-4 h-4;
+  }
+  
+  /* Icon md - 20px (prominent icons) */
+  .icon-md {
+    @apply w-5 h-5;
+  }
+  
+  /* ---- Interactive States ---- */
 
-/* Card surface - consistent card styling */
-.card-surface {
-  @apply bg-card border border-border rounded-lg;
-}
+  /* Interactive element - consistent press feedback */
+  .interactive {
+    @apply active:scale-[0.98] transition-all cursor-pointer touch-manipulation;
+  }
 
-/* Panel header - consistent panel headers */
-.panel-header {
-  @apply flex-shrink-0 border-b border-border;
-}
+  /* Muted link - subtle interactive text */
+  .link-muted {
+    @apply text-muted-foreground hover:text-foreground transition-colors cursor-pointer;
+  }
 
-/* Muted link - subtle interactive text */
-.link-muted {
-  @apply text-muted-foreground hover:text-foreground transition-colors cursor-pointer;
+  /* ---- Surface Styles ---- */
+
+  /* Card surface - consistent card styling */
+  .card-surface {
+    @apply bg-card border border-border rounded-xl;
+  }
+
+  /* Card surface with hover effect */
+  .card-surface-interactive {
+    @apply bg-card border border-border rounded-xl hover:border-primary/30 hover:bg-accent/30 
+           active:scale-[0.98] transition-all cursor-pointer;
+  }
+
+  /* Muted surface - subtle background */
+  .surface-muted {
+    @apply bg-muted/50 border border-border/50 rounded-xl;
+  }
+
+  /* Status card - for progress/status displays */
+  .card-status {
+    @apply rounded-2xl p-4 bg-card/80 border border-border/80 backdrop-blur-sm;
+  }
+
+  /* Status card complete state */
+  .card-status-complete {
+    @apply rounded-2xl p-4 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/25;
+  }
+
+  /* Panel header - consistent panel headers */
+  .panel-header {
+    @apply flex-shrink-0 border-b border-border;
+  }
+
+  /* ---- Input Styles ---- */
+
+  /* Primary search input - large rounded pill */
+  .input-search {
+    @apply w-full h-14 rounded-full border border-border bg-input 
+           pl-6 pr-16 text-base text-foreground
+           placeholder:text-muted-foreground
+           focus-visible:outline-none focus-visible:ring-2 
+           focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:cursor-not-allowed disabled:opacity-50 
+           transition-all;
+  }
+
+  /* ---- Button Styles ---- */
+
+  /* Submit button - circular icon button */
+  .btn-icon-primary {
+    @apply h-10 w-10 rounded-full bg-primary hover:bg-primary/90 
+           text-primary-foreground disabled:bg-muted 
+           disabled:cursor-not-allowed flex items-center 
+           justify-center transition-colors shadow-sm cursor-pointer;
+  }
+
+  /* Ghost icon button */
+  .btn-icon-ghost {
+    @apply h-10 w-10 rounded-full hover:bg-accent 
+           text-muted-foreground hover:text-foreground
+           flex items-center justify-center transition-colors cursor-pointer;
+  }
+
+  /* Expand/collapse toggle button */
+  .btn-expand {
+    @apply p-0.5 hover:bg-accent rounded-full transition-colors cursor-pointer;
+  }
+
+  /* ---- Message Bubbles ---- */
+
+  /* User message bubble */
+  .bubble-user {
+    @apply inline-block px-5 py-3 rounded-2xl bg-secondary text-secondary-foreground;
+  }
+
+  /* Error message container */
+  .bubble-error {
+    @apply p-4 border border-destructive/30 bg-destructive/10 rounded-xl;
+  }
+
+  /* ---- Progress/Status Indicators ---- */
+
+  /* Step indicator base */
+  .step-indicator {
+    @apply w-[14px] h-[14px] rounded-full flex items-center justify-center;
+  }
+
+  /* Step indicator completed */
+  .step-indicator-complete {
+    @apply w-[14px] h-[14px] rounded-full flex items-center justify-center bg-primary;
+  }
+
+  /* Step indicator pending */
+  .step-indicator-pending {
+    @apply w-[14px] h-[14px] rounded-full flex items-center justify-center border-2 border-muted-foreground/20;
+  }
+
+  /* Active dot pulse */
+  .dot-active {
+    @apply w-1.5 h-1.5 rounded-full bg-primary animate-pulse;
+  }
+
+  /* Status badge */
+  .badge-status {
+    @apply flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border/50;
+  }
+
+  /* ---- Icon Containers ---- */
+
+  /* Icon wrapper - muted background */
+  .icon-wrapper {
+    @apply w-5 h-5 rounded bg-muted flex items-center justify-center flex-shrink-0;
+  }
+
+  /* Icon wrapper - primary tint */
+  .icon-wrapper-primary {
+    @apply w-5 h-5 rounded bg-primary/20 flex items-center justify-center flex-shrink-0;
+  }
+
+  /* Icon wrapper - success */
+  .icon-wrapper-success {
+    @apply w-5 h-5 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0;
+  }
+
+  /* Icon wrapper - error/destructive */
+  .icon-wrapper-error {
+    @apply w-5 h-5 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0;
+  }
+
+  /* ---- Favicon Display ---- */
+
+  /* Stacked favicon container */
+  .favicon-stack {
+    @apply flex -space-x-1.5;
+  }
+
+  /* Individual favicon in stack */
+  .favicon-item {
+    @apply w-[18px] h-[18px] rounded-full border-2 border-card bg-card shadow-sm object-cover;
+  }
+
+  /* Favicon overflow count badge */
+  .favicon-overflow {
+    @apply w-[18px] h-[18px] rounded-full border-2 border-card bg-primary/15 
+           flex items-center justify-center shadow-sm text-[7px] font-bold text-primary;
+  }
+
+  /* ---- Layout Helpers ---- */
+
+  /* Flex center */
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+
+  /* Flex between */
+  .flex-between {
+    @apply flex items-center justify-between;
+  }
+
+  /* Content container - max width with padding */
+  .container-content {
+    @apply max-w-4xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ---- Follow-up Questions ---- */
+
+  /* Follow-up question button */
+  .btn-followup {
+    @apply block w-full text-left px-4 py-3 rounded-2xl 
+           border border-border hover:border-primary/50 hover:bg-accent 
+           transition-colors cursor-pointer;
+  }
+
+  /* ---- Source Cards ---- */
+
+  /* Source card in list */
+  .source-card {
+    @apply p-3 rounded-xl bg-muted/30 border border-border/50 
+           hover:bg-muted/50 hover:border-border transition-all cursor-pointer;
+  }
+
+  /* Source card expanded */
+  .source-card-expanded {
+    @apply p-4 rounded-xl bg-card border border-border shadow-sm;
+  }
 }
 
 /* ============================================

@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { search } from './search';
 import { readStreamableValue } from 'ai/rsc';
-import { SearchDisplay } from './search-display';
-import { SearchEvent, Source } from '@/lib/langgraph-search-engine';
+import { SearchDisplay } from './search-display/';
+import { SearchEvent } from '@/lib/langgraph-search-engine';
+import { StorableMessage, DisplayMessage } from '@/lib/types';
 import { MarkdownRenderer } from './markdown-renderer';
 import { CitationTooltip } from './citation-tooltip';
 import { SourcesList } from './chat/sources-list';
@@ -19,42 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Suggestions } from "@/components/suggestions";
-import { Loader2, CornerRightUp } from 'lucide-react';
+import { Loader2, CornerRightUp, ChevronRight } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-
-// SourceDetailView and SourcesList extracted to ./chat/
-
 
 interface ChatProps {
   userId?: string;
-}
-
-// Message type for storage (without React nodes)
-interface StorableMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-  searchResults?: string;
-  // Rich UI persistence fields
-  type?: 'text' | 'search-display' | 'markdown' | 'error';
-  sources?: Source[];
-  followUpQuestions?: string[];
-  // Full searchEvents for Progress UI (excluding content-chunk for size)
-  searchEvents?: SearchEvent[];
-}
-
-// Message type for display - stores raw data, not JSX
-interface DisplayMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  type: 'text' | 'search-display' | 'markdown' | 'error';
-  content: string;
-  isStreaming?: boolean;
-  sources?: Source[];
-  followUpQuestions?: string[];
-  searchEvents?: SearchEvent[];
-  searchResults?: string;
 }
 
 // Track render count for debugging
@@ -652,13 +622,13 @@ export function Chat({ userId }: ChatProps) {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Research anything"
-                  className="w-full h-14 rounded-full border border-border bg-input pl-6 pr-16 text-base text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                  className="input-search"
                   disabled={isSearching}
                 />
                 <button
                   type="submit"
                   disabled={isSearching || !input.trim()}
-                  className="absolute right-2 top-2 h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center cursor-pointer"
+                  className="absolute right-2 top-2 btn-icon-primary disabled:opacity-50"
                 >
                   {isSearching ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -695,9 +665,7 @@ export function Chat({ userId }: ChatProps) {
                 >
                   {msg.role === 'user' ? (
                     <div className="max-w-2xl">
-                      <span className="inline-block px-5 py-3 rounded-2xl bg-secondary text-secondary-foreground">
-                        {msg.content}
-                      </span>
+                      <span className="bubble-user">{msg.content}</span>
                     </div>
                   ) : (
                     <div className="w-full">
@@ -731,9 +699,9 @@ export function Chat({ userId }: ChatProps) {
                                           });
                                           document.dispatchEvent(evt);
                                         }}
-                                        className="block w-full text-left px-4 py-3 rounded-2xl border border-border hover:border-primary/50 hover:bg-accent transition-colors group cursor-pointer"
+                                        className="btn-followup group"
                                       >
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex-between">
                                           <span className="text-sm text-muted-foreground group-hover:text-foreground">
                                             {question}
                                           </span>
@@ -752,7 +720,7 @@ export function Chat({ userId }: ChatProps) {
                         </div>
                       )}
                       {msg.type === 'error' && (
-                        <div className="p-4 border border-destructive/30 bg-destructive/10 rounded-xl">
+                        <div className="bubble-error">
                           <p className="text-destructive font-medium">Search Error</p>
                           <p className="text-destructive/80 text-sm mt-1">{msg.content}</p>
                           {(msg.content.includes('API key') || msg.content.includes('OPENAI_API_KEY')) && (
@@ -784,14 +752,14 @@ export function Chat({ userId }: ChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Research anything"
-              className="w-full h-14 rounded-full border border-border bg-input pl-6 pr-16 text-base text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              className="input-search"
               disabled={isSearching}
             />
             
             <button
               type="submit"
               disabled={!input.trim() || isSearching}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-primary-foreground flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 btn-icon-primary"
             >
               {isSearching ? (
                 <Loader2 className="animate-spin h-5 w-5" />
