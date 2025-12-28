@@ -10,16 +10,15 @@ function ThemeColorSync() {
   React.useEffect(() => {
     const themeColor = resolvedTheme === 'dark' ? '#0a0a0a' : '#f5f5f5'
     
-    // Update existing theme-color meta tag or create one
-    let metaTag = document.querySelector('meta[name="theme-color"]')
-    if (metaTag) {
-      metaTag.setAttribute('content', themeColor)
-    } else {
-      metaTag = document.createElement('meta')
-      metaTag.setAttribute('name', 'theme-color')
-      metaTag.setAttribute('content', themeColor)
-      document.head.appendChild(metaTag)
-    }
+    // Remove all existing theme-color meta tags (including those with media queries)
+    const existingTags = document.querySelectorAll('meta[name="theme-color"]')
+    existingTags.forEach(tag => tag.remove())
+    
+    // Create a single theme-color meta tag without media query
+    const metaTag = document.createElement('meta')
+    metaTag.setAttribute('name', 'theme-color')
+    metaTag.setAttribute('content', themeColor)
+    document.head.appendChild(metaTag)
   }, [resolvedTheme])
   
   return null
