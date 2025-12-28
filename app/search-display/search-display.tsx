@@ -68,6 +68,7 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
       }, 1000);
       return () => clearInterval(interval);
     }
+    return; // Explicit return for TypeScript noImplicitReturns
   }, [startTime, showFinalResult]);
 
   // Update steps based on events

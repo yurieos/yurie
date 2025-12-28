@@ -41,6 +41,7 @@ export function AnimatedThinkingLine({ messages }: AnimatedThinkingLineProps) {
       const interval = setInterval(cycleMessages, cycleDelay);
       return () => clearInterval(interval);
     }
+    return; // Explicit return for TypeScript noImplicitReturns
   }, [messages, isComplete]);
   
   const currentMessage = messages[currentIndex];

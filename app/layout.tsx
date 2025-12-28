@@ -7,22 +7,31 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 import { ClerkProviderWrapper } from "@/components/clerk-provider-wrapper";
 
+// Performance: Primary font - preload for fastest LCP
 const libreBaskerville = Libre_Baskerville({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "700"],
+  display: "swap",
+  preload: true,
 });
 
+// Performance: Secondary font - defer loading
 const lora = Lora({
   variable: "--font-serif",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
+  preload: false,
 });
 
+// Performance: Mono font - defer loading (rarely used initially)
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -66,19 +75,19 @@ export default function RootLayout({
           ibmPlexMono.variable
         )}
       >
-        <ClerkProviderWrapper>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ClerkProviderWrapper>
             <main className="h-full">
               {children}
             </main>
             <Toaster />
-          </ThemeProvider>
-        </ClerkProviderWrapper>
+          </ClerkProviderWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

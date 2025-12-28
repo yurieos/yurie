@@ -17,6 +17,12 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    
+    // Performance & Code Quality: Additional strict checks
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    
     "plugins": [
       {
         "name": "next"

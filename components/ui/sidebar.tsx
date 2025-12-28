@@ -156,7 +156,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "bg-background text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
+          "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
           className
         )}
         {...props}
@@ -192,7 +192,7 @@ function Sidebar({
           <div
             data-slot="sidebar-container"
             className={cn(
-              "fixed inset-y-0 z-50 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2",
+              "fixed inset-y-0 z-50 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2 bg-sidebar",
               side === "left"
                 ? openMobile 
                   ? "left-0 translate-x-0" 
@@ -212,7 +212,7 @@ function Sidebar({
           <div
             data-sidebar="sidebar"
             data-slot="sidebar-inner"
-            className="bg-background flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-2xl"
+            className="bg-sidebar flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-2xl"
           >
             {children}
           </div>
@@ -246,7 +246,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2",
+          "fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2 bg-sidebar",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:-translate-x-[calc(100%+1rem)]"
             : "right-0 group-data-[collapsible=offcanvas]:translate-x-[calc(100%+1rem)]",
@@ -257,7 +257,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-background flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-lg"
+          className="bg-sidebar flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-lg"
         >
           {children}
         </div>
@@ -322,7 +322,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
     <main
       data-slot="sidebar-inset"
       className={cn(
-        "bg-background relative flex w-full flex-1 flex-col overflow-hidden",
+        "bg-sidebar relative flex w-full flex-1 flex-col overflow-hidden",
         className
       )}
       {...props}

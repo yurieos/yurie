@@ -54,6 +54,7 @@ export function SourcesList({ sources }: SourcesListProps) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
+    return; // Explicit return for TypeScript noImplicitReturns
   }, [showSourcesPanel, handleKeyDown]);
   
   // Calculate total stats

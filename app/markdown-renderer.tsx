@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useMemo, useDeferredValue } from 'react';
 import katex from 'katex';
 
 interface MarkdownRendererProps {
@@ -12,6 +12,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content, 
   streaming = false 
 }: MarkdownRendererProps) {
+  // Performance: Defer content updates during rapid streaming to prevent UI blocking
+  const deferredContent = useDeferredValue(content);
+  
   // Simple markdown parsing
   const parseMarkdown = (text: string) => {
     try {
@@ -266,10 +269,13 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     }
   };
 
+  // Performance: Memoize parsed content to avoid re-parsing on every render
+  const parsedHtml = useMemo(() => parseMarkdown(deferredContent), [deferredContent]);
+
   return (
     <div className="text-foreground text-base">
       <div 
-        dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }} 
+        dangerouslySetInnerHTML={{ __html: parsedHtml }} 
         className="markdown-content leading-[1.8] tracking-[0.01em] [&>h1]:text-foreground [&>h2]:text-foreground [&>h3]:text-foreground [&>h4]:text-foreground [&>p]:text-[1.05rem] [&>li]:text-[1.05rem]"
       />
       {streaming && <span className="animate-pulse text-primary">▊</span>}
