@@ -182,7 +182,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
 
           {/* Custom Dropdown Menu */}
           {profileDropdownOpen && mounted && (
-            <div className="absolute top-full left-0 right-0 mt-1 mx-2 bg-sidebar border border-sidebar-border rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+            <div className="absolute top-full left-0 right-0 mt-1 mx-2 bg-background border border-sidebar-border rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
               {/* Manage Account */}
               <button
                 onClick={handleManageAccount}

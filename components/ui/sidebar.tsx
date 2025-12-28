@@ -156,7 +156,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
+          "bg-background text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
           className
         )}
         {...props}
@@ -209,17 +209,17 @@ function Sidebar({
             }
             {...props}
           >
-            <div
-              data-sidebar="sidebar"
-              data-slot="sidebar-inner"
-              className="bg-sidebar flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-2xl"
-            >
-              {children}
-            </div>
+          <div
+            data-sidebar="sidebar"
+            data-slot="sidebar-inner"
+            className="bg-background flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-2xl"
+          >
+            {children}
           </div>
         </div>
-      </>
-    )
+      </div>
+    </>
+  )
   }
 
   // Desktop: Floating sidebar
@@ -257,7 +257,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-sidebar flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-lg"
+          className="bg-background flex h-full w-full flex-col rounded-xl border border-sidebar-border shadow-lg"
         >
           {children}
         </div>

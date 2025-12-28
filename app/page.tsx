@@ -29,9 +29,9 @@ export default async function Home() {
         <ConversationSidebar userId={userId} />
       )}
       
-      <SidebarInset className="rounded-xl my-2 mr-2 ml-0 peer-data-[state=collapsed]:ml-2 border border-border shadow-sm transition-[margin] duration-300">
+      <SidebarInset className="transition-[margin] duration-300">
         {/* Header with logo */}
-        <header className="h-14 shrink-0 px-4 flex items-center rounded-t-xl">
+        <header className="h-14 shrink-0 px-4 flex items-center">
           <div className="flex-1 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AuthHeader userId={userId} position="left" />
@@ -71,7 +71,7 @@ export default async function Home() {
         </header>
 
         {/* Main content wrapper */}
-        <div className="flex-1 flex flex-col overflow-hidden rounded-b-xl">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <Chat userId={userId || undefined} />
         </div>
       </SidebarInset>
