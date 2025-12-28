@@ -189,19 +189,19 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
         >
-          <div
-            data-slot="sidebar-container"
-            className={cn(
-              "fixed inset-y-0 z-50 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2 bg-sidebar",
-              side === "left"
-                ? openMobile 
-                  ? "left-0 translate-x-0" 
-                  : "left-0 -translate-x-[calc(100%+1rem)]"
-                : openMobile
-                  ? "right-0 translate-x-0"
-                  : "right-0 translate-x-[calc(100%+1rem)]",
-              className
-            )}
+        <div
+          data-slot="sidebar-container"
+          className={cn(
+            "fixed inset-y-0 z-50 flex h-svh w-(--sidebar-width) transition-transform duration-300 ease-out p-2",
+            side === "left"
+              ? openMobile 
+                ? "left-0 translate-x-0" 
+                : "left-0 -translate-x-[calc(100%+1rem)]"
+              : openMobile
+                ? "right-0 translate-x-0"
+                : "right-0 translate-x-[calc(100%+1rem)]",
+            className
+          )}
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
