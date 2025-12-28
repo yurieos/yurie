@@ -7,9 +7,10 @@ const isClerkConfigured = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
+  '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/api/check-env(.*)',
+  '/api(.*)',
 ])
 
 // Middleware function
