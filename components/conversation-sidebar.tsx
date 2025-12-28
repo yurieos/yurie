@@ -136,25 +136,25 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
 
   return (
     <Sidebar variant="inset">
-      <SidebarHeader className="h-16 shrink-0 px-4 flex flex-row items-center border-b border-sidebar-border/50">
-        <div className="flex-1 flex items-center justify-between">
+      <SidebarHeader className="h-16 shrink-0 p-0 flex flex-row items-center border-b border-sidebar-border/50">
+        <div className="flex-1 flex items-center justify-between w-full">
           {mounted ? (
             <div 
               onClick={handleUserButtonClick}
-              className="flex items-center gap-3 p-1.5 -ml-1.5 rounded-lg hover:bg-sidebar-accent/50 transition-colors group cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 w-full rounded-md hover:bg-sidebar-accent/50 transition-colors group cursor-pointer"
             >
-              <div className="relative" ref={userButtonRef} onClick={(e) => e.stopPropagation()}>
+              <div className="relative flex-shrink-0 flex items-center justify-center" ref={userButtonRef} onClick={(e) => e.stopPropagation()}>
                 <UserButton 
                   afterSignOutUrl="/"
                   appearance={{
                     elements: {
-                      avatarBox: "w-8 h-8 rounded-full ring-2 ring-transparent group-hover:ring-sidebar-primary/20 transition-all",
+                      avatarBox: "w-7 h-7 rounded-full ring-2 ring-transparent group-hover:ring-sidebar-primary/20 transition-all",
                       userButtonTrigger: "focus:shadow-none focus:ring-0 focus:outline-none p-0",
                     }
                   }}
                 />
               </div>
-              <div className="flex flex-col min-w-0">
+              <div className="flex flex-col min-w-0 flex-1">
                 <span className="text-sm font-medium text-sidebar-foreground truncate group-hover:text-sidebar-accent-foreground transition-colors">
                   {user?.firstName || user?.username || 'User'}
                 </span>
@@ -162,25 +162,28 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                   {user?.primaryEmailAddress?.emailAddress || ''}
                 </span>
               </div>
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent active:scale-95 transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMobile(false);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ) : (
-            <div className="flex items-center gap-3 p-1.5 -ml-1.5">
-              <div className="w-8 h-8 rounded-full bg-sidebar-accent/50 animate-pulse" />
-              <div className="flex flex-col gap-1.5 min-w-0">
-                <div className="h-4 w-20 rounded bg-sidebar-accent/50 animate-pulse" />
-                <div className="h-3 w-28 rounded bg-sidebar-accent/30 animate-pulse" />
+            <div className="flex items-center gap-2 px-3 py-1.5 w-full">
+              <div className="w-7 h-7 flex-shrink-0 rounded-full bg-sidebar-accent/50 animate-pulse" />
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="h-3.5 w-16 rounded bg-sidebar-accent/50 animate-pulse" />
+                <div className="h-2.5 w-24 rounded bg-sidebar-accent/30 animate-pulse" />
               </div>
             </div>
-          )}
-          {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent active:scale-95 transition-all"
-              onClick={() => setOpenMobile(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
           )}
         </div>
       </SidebarHeader>
@@ -224,7 +227,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
               {/* Vertical timeline line */}
               {conversations.length > 0 && !isLoading && (
                 <div 
-                  className="absolute left-[17px] top-0 bottom-0 w-px bg-gradient-to-b from-sidebar-border/70 via-sidebar-border/50 to-sidebar-border/30"
+                  className="absolute left-[19px] top-0 bottom-0 w-px bg-gradient-to-b from-sidebar-border/70 via-sidebar-border/50 to-sidebar-border/30"
                   aria-hidden="true"
                 />
               )}
@@ -253,7 +256,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                     <SidebarMenuItem key={conversation.id} className="relative group/item">
                       {/* Small dot on the timeline */}
                       <div 
-                        className="absolute left-[15px] top-1/2 -translate-y-1/2 w-[5px] h-[5px] rounded-full bg-sidebar-border/70 transition-all duration-200 group-hover/item:bg-sidebar-foreground/50 group-hover/item:scale-110"
+                        className="absolute left-[17px] top-1/2 -translate-y-1/2 w-[5px] h-[5px] rounded-full bg-sidebar-border/70 transition-all duration-200 group-hover/item:bg-sidebar-foreground/50 group-hover/item:scale-110"
                         aria-hidden="true"
                       />
                       <SidebarMenuButton

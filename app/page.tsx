@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { Chat } from './chat';
 import { ModeToggle } from '@/components/mode-toggle';
 import { AuthHeader } from '@/components/auth-header';
@@ -36,8 +37,25 @@ export default async function Home() {
               <AuthHeader userId={userId} position="left" />
               <a
                 href="/"
-                className="flex items-center gap-2"
+                className="flex items-center gap-1.5"
               >
+                {/* Logo - dark version for light mode, light version for dark mode */}
+                <Image
+                  src="/yuriedark.png"
+                  alt="Yurie logo"
+                  width={30}
+                  height={30}
+                  className="block dark:hidden"
+                  priority
+                />
+                <Image
+                  src="/yurielight.png"
+                  alt="Yurie logo"
+                  width={30}
+                  height={30}
+                  className="hidden dark:block"
+                  priority
+                />
                 <span className="text-xl font-semibold tracking-tight text-foreground lowercase">
                   <span className="text-primary">
                     yurie
