@@ -4,8 +4,8 @@
   "description": "AI-powered search",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fbfbfb",
-  "theme_color": "#fbfbfb",
+  "background_color": "#0f0f10",
+  "theme_color": "#0f0f10",
   "icons": [
     {
       "src": "/yurieapplogo.png",
