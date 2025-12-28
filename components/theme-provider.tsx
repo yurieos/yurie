@@ -3,10 +3,10 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-// Theme colors must match --background in globals.css
+// Theme colors must match --background in globals.css (Vintage Paper theme)
 const THEME_COLORS = {
-  light: '#f5f5f5',
-  dark: '#0a0a0a',
+  light: '#f5f1e6',
+  dark: '#2d2621',
 } as const
 
 // Component to sync theme-color meta tag with current theme

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Space_Grotesk } from "next/font/google";
+import { Libre_Baskerville, Lora, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import 'katex/dist/katex.min.css';
 import { cn } from "@/lib/utils";
@@ -7,10 +7,22 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 import { ClerkProviderWrapper } from "@/components/clerk-provider-wrapper";
 
-const spaceGrotesk = Space_Grotesk({
+const libreBaskerville = Libre_Baskerville({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "700"],
+});
+
+const lora = Lora({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +46,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0a0a0a",
+  themeColor: "#2d2621",
 };
 
 export default function RootLayout({
@@ -49,7 +61,9 @@ export default function RootLayout({
         suppressHydrationWarning={true}
         className={cn(
           "h-full overflow-hidden bg-sidebar font-sans antialiased",
-          spaceGrotesk.variable
+          libreBaskerville.variable,
+          lora.variable,
+          ibmPlexMono.variable
         )}
       >
         <ClerkProviderWrapper>
