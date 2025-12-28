@@ -56,9 +56,9 @@ export default async function Home() {
                   className="hidden dark:block"
                   priority
                 />
-                <span className="text-lg font-semibold tracking-tight text-foreground lowercase">
+                <span className="text-lg font-semibold tracking-tight text-foreground">
                   <span className="text-primary">
-                    yurie
+                    Yurie
                   </span>
                 </span>
               </a>
