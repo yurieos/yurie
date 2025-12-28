@@ -35,7 +35,7 @@ export default async function Home() {
           <div className="flex-1 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AuthHeader userId={userId} position="left" />
-              <div className="h-5 w-px bg-border" />
+              {userId && <div className="h-5 w-px bg-border" />}
               <a
                 href="/"
                 className="flex items-center gap-1.5"

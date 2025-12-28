@@ -33,6 +33,7 @@ export function AuthHeader({ userId, position }: AuthHeaderProps) {
   // This ensures consistent rendering between server and client
   if (!mounted) {
     if (position === 'left') {
+      if (!userId) return null;
       // Return invisible placeholder matching SidebarTrigger dimensions
       return <div className="size-8" aria-hidden="true" />;
     }
