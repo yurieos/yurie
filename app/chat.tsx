@@ -1238,7 +1238,7 @@ export function Chat({ userId }: ChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Research anything"
-              className="w-full h-14 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-6 pr-16 text-base text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm transition-shadow hover:shadow-md"
+              className="w-full h-14 rounded-full border border-border bg-card pl-6 pr-16 text-base text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm transition-shadow hover:shadow-md"
               disabled={isSearching}
             />
             

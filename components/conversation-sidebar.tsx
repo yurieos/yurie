@@ -226,7 +226,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
             <button
               onClick={handleNewChat}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200
-                text-sidebar-foreground bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 active:scale-[0.98]"
+                text-sidebar-foreground bg-sidebar-accent hover:bg-sidebar-accent/80 active:scale-[0.98]"
             >
               <Plus className="h-4 w-4" weight="bold" />
               <span className="text-sm font-medium">New Chat</span>
