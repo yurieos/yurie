@@ -6,8 +6,16 @@ import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 // Component to sync theme-color meta tag with current theme
 function ThemeColorSync() {
   const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
   
   React.useEffect(() => {
+    setMounted(true)
+  }, [])
+  
+  React.useEffect(() => {
+    // Wait for mount and theme to be resolved
+    if (!mounted || !resolvedTheme) return
+    
     const themeColor = resolvedTheme === 'dark' ? '#0a0a0a' : '#f5f5f5'
     
     // Remove all existing theme-color meta tags (including those with media queries)
@@ -19,7 +27,7 @@ function ThemeColorSync() {
     metaTag.setAttribute('name', 'theme-color')
     metaTag.setAttribute('content', themeColor)
     document.head.appendChild(metaTag)
-  }, [resolvedTheme])
+  }, [mounted, resolvedTheme])
   
   return null
 }
