@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
@@ -12,6 +13,13 @@ interface AuthHeaderProps {
 const isClerkConfigured = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export function AuthHeader({ userId, position }: AuthHeaderProps) {
+  // Use mounted state to avoid hydration mismatch with Clerk's auth-dependent components
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // If Clerk is not configured, don't render auth components
   if (!isClerkConfigured) {
     // Still show sidebar trigger on the left even without auth
@@ -19,6 +27,17 @@ export function AuthHeader({ userId, position }: AuthHeaderProps) {
       return null; // Will be handled at the layout level
     }
     return null;
+  }
+
+  // Render a placeholder with same dimensions during SSR to prevent layout shift
+  // This ensures consistent rendering between server and client
+  if (!mounted) {
+    if (position === 'left') {
+      // Return invisible placeholder matching SidebarTrigger dimensions
+      return <div className="size-8" aria-hidden="true" />;
+    }
+    // Return invisible placeholder matching Sign In button dimensions
+    return <div className="h-9 w-[72px]" aria-hidden="true" />;
   }
 
   if (position === 'left') {
@@ -34,7 +53,7 @@ export function AuthHeader({ userId, position }: AuthHeaderProps) {
   return (
     <SignedOut>
       <SignInButton mode="modal">
-        <button className="px-4 py-2 text-sm font-medium text-foreground bg-primary hover:bg-primary/90 active:scale-95 rounded-full transition-all cursor-pointer touch-manipulation">
+        <button className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 active:scale-95 rounded-full transition-all cursor-pointer touch-manipulation">
           Sign in
         </button>
       </SignInButton>

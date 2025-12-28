@@ -16,6 +16,15 @@ export interface ChatMessage {
   content: string
   timestamp: number
   searchResults?: string // Store search results for context
+  // Rich UI persistence fields
+  type?: 'text' | 'search-display' | 'markdown' | 'error'
+  sources?: Array<{ url: string; title: string; content?: string; quality?: number; summary?: string }>
+  followUpQuestions?: string[]
+  // Full searchEvents for Progress UI (excluding content-chunk for size)
+  searchEvents?: Array<{
+    type: string
+    [key: string]: unknown
+  }>
 }
 
 export interface Conversation {

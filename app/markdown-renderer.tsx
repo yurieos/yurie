@@ -14,7 +14,13 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 }: MarkdownRendererProps) {
   // Simple markdown parsing
   const parseMarkdown = (text: string) => {
-    const blocks: Record<string, string> = {};
+    try {
+      // Safety check for extremely long content to avoid regex stack overflow
+      if (text.length > 50000) {
+        return `<div class="p-4 bg-muted/30 rounded text-muted-foreground">Content too long to render preview (${Math.round(text.length / 1024)}KB)</div>`;
+      }
+
+      const blocks: Record<string, string> = {};
     const protect = (content: string) => {
       const id = `__BLOCK_${Math.random().toString(36).substr(2, 9)}__`;
       blocks[id] = content;
@@ -254,6 +260,10 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     parsed = parsed.replace(/\n/g, ' ');
     
     return parsed;
+    } catch (e) {
+      console.error('Markdown parsing failed:', e);
+      return `<div class="whitespace-pre-wrap font-mono text-sm overflow-x-auto">${text}</div>`;
+    }
   };
 
   return (
@@ -262,7 +272,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }} 
         className="markdown-content leading-[1.8] tracking-[0.01em] [&>h1]:text-foreground [&>h2]:text-foreground [&>h3]:text-foreground [&>h4]:text-foreground [&>p]:text-[1.05rem] [&>li]:text-[1.05rem]"
       />
-      {streaming && <span className="animate-pulse text-orange-500">▊</span>}
+      {streaming && <span className="animate-pulse text-primary">▊</span>}
     </div>
   );
 });

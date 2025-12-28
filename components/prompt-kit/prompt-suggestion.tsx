@@ -37,9 +37,9 @@ const PromptSuggestion = forwardRef<HTMLButtonElement, PromptSuggestionProps>(
         className={cn(
           "inline-flex items-center gap-2 rounded-full px-4 py-2",
           "text-sm font-medium",
-          "bg-secondary/50 hover:bg-secondary",
+          "bg-secondary/80 hover:bg-secondary",
           "border border-border/50 hover:border-border",
-          "text-foreground/80 hover:text-foreground",
+          "text-secondary-foreground/80 hover:text-secondary-foreground",
           "transition-all duration-200 ease-out",
           "cursor-pointer select-none",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",

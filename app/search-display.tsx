@@ -500,7 +500,16 @@ function ProgressHeader({
   );
 }
 
+// Track render count for debugging
+// let searchDisplayRenderCount = 0;
+
 export function SearchDisplay({ events }: { events: SearchEvent[] }) {
+  // #region agent log
+  // searchDisplayRenderCount++;
+  // if (searchDisplayRenderCount <= 50 || searchDisplayRenderCount % 100 === 0) {
+  //   fetch('http://127.0.0.1:7243/ingest/a68521b3-0cb2-4489-b824-b39724e8567a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'search-display.tsx:SearchDisplay:render',message:'SearchDisplay render',data:{renderCount:searchDisplayRenderCount,eventsCount:events.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+  // }
+  // #endregion
   const [steps, setSteps] = useState<SearchStep[]>([]);
   const [, setStreamedContent] = useState('');
   const [showFinalResult, setShowFinalResult] = useState(false);
@@ -1192,9 +1201,9 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
         firecrawl: <Flame className="w-3 h-3" />,
       };
       const providerColors: Record<string, string> = {
-        tavily: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-        exa: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-        firecrawl: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+        tavily: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
+        exa: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
+        firecrawl: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
       };
       
       return (
@@ -1220,9 +1229,9 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
       
       // Provider badge colors
       const searchProviderColors: Record<string, string> = {
-        tavily: 'text-blue-600 dark:text-blue-400',
-        exa: 'text-purple-600 dark:text-purple-400',
-        firecrawl: 'text-orange-600 dark:text-orange-400',
+        tavily: 'text-zinc-600 dark:text-zinc-400',
+        exa: 'text-zinc-600 dark:text-zinc-400',
+        firecrawl: 'text-zinc-600 dark:text-zinc-400',
       };
       
       return (

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Libre_Baskerville, Lora, Space_Grotesk } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import 'katex/dist/katex.min.css';
 import { cn } from "@/lib/utils";
@@ -7,26 +7,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 import { ClerkProviderWrapper } from "@/components/clerk-provider-wrapper";
 
-const libreBaskerville = Libre_Baskerville({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
-const lora = Lora({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space",
+  variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
@@ -49,8 +31,8 @@ export const metadata: Metadata = {
 
 export const viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f1e6" },
-    { media: "(prefers-color-scheme: dark)", color: "#2d2621" },
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#18181b" },
   ],
 };
 
@@ -66,9 +48,6 @@ export default function RootLayout({
         suppressHydrationWarning={true}
         className={cn(
           "h-full overflow-hidden bg-sidebar font-sans antialiased",
-          libreBaskerville.variable,
-          lora.variable,
-          ibmPlexMono.variable,
           spaceGrotesk.variable
         )}
       >

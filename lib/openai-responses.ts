@@ -10,7 +10,7 @@
  * @see https://platform.openai.com/docs/guides/latest-model
  */
 
-export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type Verbosity = 'low' | 'medium' | 'high';
 
 export interface ResponsesAPIOptions {

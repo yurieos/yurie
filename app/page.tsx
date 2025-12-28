@@ -22,7 +22,7 @@ export default async function Home() {
   }
   
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider defaultOpen={true} className="h-full">
       {/* Inset Sidebar */}
       {isClerkConfigured && userId && (
         <ConversationSidebar userId={userId} />
@@ -38,7 +38,7 @@ export default async function Home() {
                 href="/"
                 className="flex items-center gap-2"
               >
-                <span className="text-xl font-bold tracking-tight text-foreground font-space lowercase">
+                <span className="text-xl font-semibold tracking-tight text-foreground lowercase">
                   <span className="text-primary">
                     yurie
                   </span>

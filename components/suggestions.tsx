@@ -117,7 +117,7 @@ export const Suggestions = memo(function SuggestionsComponent({
         {activeCategoryData?.items.map((suggestion: string, index: number) => (
           <MotionPromptSuggestion
             animate="animate"
-            className="text-left justify-start rounded-xl bg-transparent border-transparent hover:bg-secondary/50 hover:border-border/50"
+            className="text-left justify-start rounded-xl bg-transparent border-none hover:bg-primary/10 hover:border-none"
             exit="exit"
             highlight={activeCategoryData.highlight}
             initial="initial"

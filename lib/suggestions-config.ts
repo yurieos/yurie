@@ -1,20 +1,19 @@
 import { 
   Atom, 
   Cpu, 
-  FlaskConical, 
-  Map, 
-  Rocket, 
-  ScrollText, 
-  TrendingUp, 
-  type LucideIcon 
-} from "lucide-react";
+  Flask, 
+  MapTrifold, 
+  RocketLaunch, 
+  Scroll, 
+  TrendUp,
+} from "@phosphor-icons/react";
 
 export type SuggestionCategory = {
   label: string;
   highlight: string;
   prompt: string;
   items: string[];
-  icon: LucideIcon;
+  icon: any;
 };
 
 export const SUGGESTIONS: SuggestionCategory[] = [
@@ -29,7 +28,7 @@ export const SUGGESTIONS: SuggestionCategory[] = [
       "Uncover the mystery of the 'Mary Celeste' ship",
       "Uncover the legend of the 'Library of Alexandria'",
     ],
-    icon: ScrollText,
+    icon: Scroll,
   },
   {
     label: "Discovery",
@@ -42,7 +41,7 @@ export const SUGGESTIONS: SuggestionCategory[] = [
       "Investigate the first observation of 'Bacteria'",
       "Investigate the excavation of 'Pompeii'",
     ],
-    icon: FlaskConical,
+    icon: Flask,
   },
   {
     label: "Treasure Hunting",
@@ -55,7 +54,7 @@ export const SUGGESTIONS: SuggestionCategory[] = [
       "Locate the lost 'City of Atlantis'",
       "Locate the 'Holy Grail' historical traces",
     ],
-    icon: Map,
+    icon: MapTrifold,
   },
   {
     label: "Science",
@@ -81,7 +80,7 @@ export const SUGGESTIONS: SuggestionCategory[] = [
       "Explore the 'Dark Side of the Moon'",
       "Explore the mysterious 'Area 51' history",
     ],
-    icon: Rocket,
+    icon: RocketLaunch,
   },
   {
     label: "Finance",
@@ -94,7 +93,7 @@ export const SUGGESTIONS: SuggestionCategory[] = [
       "Evaluate the cost of building the 'Death Star'",
       "Evaluate the rise of 'Bitcoin' billionaires",
     ],
-    icon: TrendingUp,
+    icon: TrendUp,
   },
   {
     label: "Technology",
