@@ -1201,9 +1201,9 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
         firecrawl: <Flame className="w-3 h-3" />,
       };
       const providerColors: Record<string, string> = {
-        tavily: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
-        exa: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
-        firecrawl: 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300',
+        tavily: 'bg-muted text-muted-foreground',
+        exa: 'bg-muted text-muted-foreground',
+        firecrawl: 'bg-muted text-muted-foreground',
       };
       
       return (
@@ -1229,9 +1229,9 @@ function renderEvent(event: SearchEvent, _completedPhases: Set<string>, currentP
       
       // Provider badge colors
       const searchProviderColors: Record<string, string> = {
-        tavily: 'text-zinc-600 dark:text-zinc-400',
-        exa: 'text-zinc-600 dark:text-zinc-400',
-        firecrawl: 'text-zinc-600 dark:text-zinc-400',
+        tavily: 'text-muted-foreground',
+        exa: 'text-muted-foreground',
+        firecrawl: 'text-muted-foreground',
       };
       
       return (
