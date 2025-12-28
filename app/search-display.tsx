@@ -988,10 +988,10 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
           />
         </div>
         
-        {/* Scrollable steps area */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4" ref={stepsScrollRef}>
-          <div className="relative rounded-xl p-4 bg-card/80 border border-border/30">
-            <div className="relative pl-7">
+      {/* Scrollable steps area */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4" ref={stepsScrollRef}>
+        <div className="relative rounded-xl p-4 bg-card/80 border border-border/30">
+          <div className="relative pl-7">
               {/* Steps */}
               {steps.map((step, index) => {
                 const completedCount = steps.filter(s => s.status === 'completed').length;

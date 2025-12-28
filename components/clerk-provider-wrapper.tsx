@@ -19,135 +19,150 @@ export function ClerkProviderWrapper({ children }: ClerkProviderWrapperProps) {
       publishableKey={publishableKey}
       appearance={{
         variables: {
-          colorPrimary: '#fafafa',
-          colorDanger: '#ef4444',
+          // Brand colors matching app theme
+          colorPrimary: '#d97757',
+          colorDanger: '#c0392b',
           colorSuccess: '#22c55e',
           colorWarning: '#f59e0b',
-          colorBackground: '#18181b',
-          colorInputBackground: '#27272a',
-          colorInputText: '#fafafa',
-          colorText: '#fafafa',
-          colorTextOnPrimaryBackground: '#18181b',
-          colorTextSecondary: '#a1a1aa',
-          borderRadius: '0.625rem',
-          colorNeutral: '#a1a1aa',
-          spacingUnit: '1rem',
-          fontFamily: 'inherit',
+          
+          // Dark theme backgrounds
+          colorBackground: '#0a0a0a',
+          colorInputBackground: '#1a1a1a',
+          colorInputText: '#ffffff',
+          colorText: '#ffffff',
+          colorTextOnPrimaryBackground: '#ffffff',
+          colorTextSecondary: '#8a8a8a',
+          
+          // Styling
+          borderRadius: '0.75rem',
+          colorNeutral: '#8a8a8a',
+          spacingUnit: '0.875rem',
+          fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
         },
         elements: {
-          // Root & Card
+          // Root & Card - matching app's card style
           rootBox: 'font-sans',
-          card: 'bg-[#18181b] border-0 shadow-none',
+          card: 'bg-[#0a0a0a] border border-[#1a1a1a] shadow-2xl rounded-2xl',
           
-          // Modal
-          modalBackdrop: 'bg-black/80',
-          modalContent: 'bg-[#18181b] border border-[#27272a] rounded-xl',
-          modalCloseButton: 'text-[#a1a1aa] hover:text-[#fafafa] rounded-md p-1 transition-colors',
+          // Modal - sleek dark overlay
+          modalBackdrop: 'bg-black/90 backdrop-blur-sm',
+          modalContent: 'bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl shadow-2xl',
+          modalCloseButton: 'text-[#8a8a8a] hover:text-white hover:bg-[#1a1a1a] rounded-lg p-2 transition-all duration-200',
           
-          // Headers
-          headerTitle: 'text-[#fafafa] text-lg font-medium',
-          headerSubtitle: 'text-[#a1a1aa] text-sm',
+          // Headers - clean typography
+          headerTitle: 'text-white text-xl font-semibold tracking-tight',
+          headerSubtitle: 'text-[#8a8a8a] text-sm',
           
-          // Navbar - clean
-          navbar: 'bg-[#18181b] border-0',
-          navbarButton: 'text-[#a1a1aa] hover:text-[#fafafa] hover:bg-[#27272a] rounded-md mx-1 px-3 py-2 text-sm transition-colors',
-          navbarButtonIcon: 'text-[#a1a1aa] w-4 h-4',
-          navbarButtons: 'gap-0.5',
-          'navbarButton__active': 'bg-[#27272a] text-[#fafafa]',
-          'navbarButtonIcon__active': 'text-[#fafafa]',
+          // Navbar - seamless with app sidebar style
+          navbar: 'bg-[#0a0a0a] border-0 p-2',
+          navbarButton: 'text-[#8a8a8a] hover:text-white hover:bg-[#1a1a1a] rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200',
+          navbarButtonIcon: 'text-[#8a8a8a] w-4 h-4',
+          navbarButtons: 'gap-1',
+          'navbarButton__active': 'bg-[#1a1a1a] text-white',
+          'navbarButtonIcon__active': 'text-[#d97757]',
           
-          // Page
-          pageScrollBox: 'bg-[#18181b] px-6 py-5',
-          page: 'bg-[#18181b]',
-          profilePage: 'bg-[#18181b]',
+          // Page - consistent dark background
+          pageScrollBox: 'bg-[#0a0a0a] px-6 py-6',
+          page: 'bg-[#0a0a0a]',
+          profilePage: 'bg-[#0a0a0a]',
           
-          // Sections - NO dividers
-          profileSection: 'border-0 pb-4 mb-2',
-          profileSectionTitle: 'text-[#a1a1aa] text-xs uppercase tracking-wider font-medium mb-3',
-          profileSectionTitleText: 'text-[#a1a1aa]',
-          profileSectionContent: 'space-y-1',
-          profileSectionPrimaryButton: 'text-[#fafafa] hover:text-[#e4e4e7] text-sm transition-colors',
+          // Sections - clean separation
+          profileSection: 'border-0 pb-6 mb-4',
+          profileSectionTitle: 'text-[#8a8a8a] text-xs uppercase tracking-widest font-semibold mb-4',
+          profileSectionTitleText: 'text-[#8a8a8a]',
+          profileSectionContent: 'space-y-2',
+          profileSectionPrimaryButton: 'text-white hover:text-[#d97757] text-sm font-medium transition-colors duration-200',
           
-          // Forms
-          formButtonPrimary: 'bg-[#fafafa] hover:bg-[#e4e4e7] text-[#18181b] font-medium rounded-md h-9 px-4 text-sm transition-colors',
-          formButtonReset: 'text-[#a1a1aa] hover:text-[#fafafa] text-sm transition-colors',
-          formFieldInput: 'bg-[#27272a] border-0 text-[#fafafa] placeholder:text-[#71717a] rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-[#52525b]',
-          formFieldLabel: 'text-[#a1a1aa] text-sm mb-1',
-          formFieldAction: 'text-[#fafafa] hover:text-[#e4e4e7] text-sm transition-colors',
-          formFieldInputShowPasswordButton: 'text-[#a1a1aa] hover:text-[#fafafa]',
+          // Forms - matching app input style
+          formButtonPrimary: 'bg-[#d97757] hover:bg-[#c96442] text-white font-semibold rounded-xl h-11 px-6 text-sm transition-all duration-200 shadow-lg shadow-[#d97757]/20 hover:shadow-[#d97757]/30',
+          formButtonReset: 'text-[#8a8a8a] hover:text-white text-sm font-medium transition-colors duration-200',
+          formFieldInput: 'bg-[#1a1a1a] border border-[#2a2a2a] text-white placeholder:text-[#666666] rounded-xl h-11 px-4 text-sm focus:ring-2 focus:ring-[#d97757]/50 focus:border-[#d97757] transition-all duration-200',
+          formFieldLabel: 'text-[#8a8a8a] text-sm font-medium mb-2',
+          formFieldAction: 'text-[#d97757] hover:text-[#e88868] text-sm font-medium transition-colors duration-200',
+          formFieldInputShowPasswordButton: 'text-[#8a8a8a] hover:text-white transition-colors',
           formFieldSuccessText: 'text-[#22c55e] text-sm',
-          formFieldErrorText: 'text-[#ef4444] text-sm',
-          formResendCodeLink: 'text-[#fafafa] hover:text-[#e4e4e7] text-sm',
+          formFieldErrorText: 'text-[#c0392b] text-sm',
+          formResendCodeLink: 'text-[#d97757] hover:text-[#e88868] text-sm font-medium transition-colors',
           
-          // Buttons
-          button: 'transition-colors',
-          buttonArrowIcon: 'text-[#a1a1aa]',
+          // Buttons - consistent with app buttons
+          button: 'transition-all duration-200',
+          buttonArrowIcon: 'text-[#8a8a8a]',
           
-          // Menus
-          menuButton: 'text-[#a1a1aa] hover:text-[#fafafa] rounded-md p-1 transition-colors',
-          menuList: 'bg-[#27272a] border border-[#3f3f46] rounded-lg shadow-lg py-1',
-          menuItem: 'text-[#fafafa] hover:bg-[#3f3f46] px-3 py-2 text-sm transition-colors',
+          // Menus - sleek dropdown style
+          menuButton: 'text-[#8a8a8a] hover:text-white rounded-lg p-2 transition-all duration-200',
+          menuList: 'bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl shadow-2xl py-2',
+          menuItem: 'text-white hover:bg-[#1a1a1a] px-4 py-2.5 text-sm font-medium transition-all duration-200',
           
-          // Social
-          socialButtonsBlockButton: 'bg-[#27272a] hover:bg-[#3f3f46] border-0 text-[#fafafa] rounded-md h-10 transition-colors',
-          socialButtonsBlockButtonText: 'text-[#fafafa] text-sm',
-          socialButtonsProviderIcon: 'w-4 h-4',
+          // Social buttons - matching app style
+          socialButtonsBlockButton: 'bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-[#2a2a2a] text-white rounded-xl h-11 text-sm font-medium transition-all duration-200',
+          socialButtonsBlockButtonText: 'text-white text-sm font-medium',
+          socialButtonsProviderIcon: 'w-5 h-5',
           
           // Dividers - subtle
-          dividerLine: 'bg-[#3f3f46]',
-          dividerText: 'text-[#71717a] text-xs',
+          dividerLine: 'bg-[#1a1a1a]',
+          dividerText: 'text-[#666666] text-xs font-medium',
           
-          // User popover
-          userButtonPopoverCard: 'bg-[#18181b] border border-[#27272a] shadow-lg rounded-lg',
-          userButtonPopoverMain: 'bg-[#18181b] p-3',
-          userButtonPopoverActions: 'border-t border-[#27272a] p-1',
-          userButtonPopoverActionButton: 'text-[#fafafa] hover:bg-[#27272a] rounded-md transition-colors',
-          userButtonPopoverActionButtonText: 'text-[#fafafa] text-sm',
-          userButtonPopoverActionButtonIcon: 'text-[#a1a1aa] w-4 h-4',
-          userButtonPopoverFooter: 'hidden',
-          userPreviewMainIdentifier: 'text-[#fafafa] font-medium text-sm',
-          userPreviewSecondaryIdentifier: 'text-[#a1a1aa] text-xs',
+          // User preview in profile modal
+          userButtonBox: 'relative',
           
-          // Avatar
-          avatarBox: 'rounded-full',
+          // User preview in modals
+          userPreviewMainIdentifier: 'text-white font-semibold text-base',
+          userPreviewSecondaryIdentifier: 'text-[#8a8a8a] text-sm',
+          userPreview: 'gap-3',
+          userPreviewAvatarBox: 'w-12 h-12 ring-2 ring-[#1a1a1a]',
+          userPreviewAvatarImage: 'rounded-full',
+          userPreviewTextContainer: 'gap-1',
+          
+          // Avatar - consistent with app
+          avatarBox: 'rounded-full ring-2 ring-[#1a1a1a]',
           avatarImage: 'rounded-full',
           
-          // Badges
-          badge: 'bg-[#27272a] text-[#a1a1aa] border-0 rounded px-2 py-0.5 text-xs',
-          tagInputContainer: 'bg-[#27272a] border-0 rounded-md',
-          tagPillContainer: 'bg-[#27272a] text-[#a1a1aa] rounded',
+          // Badges - matching app style
+          badge: 'bg-[#1a1a1a] text-[#8a8a8a] border border-[#2a2a2a] rounded-lg px-2.5 py-1 text-xs font-medium',
+          tagInputContainer: 'bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl',
+          tagPillContainer: 'bg-[#1a1a1a] text-white border border-[#2a2a2a] rounded-lg',
           
-          // Alerts
-          alert: 'bg-[#27272a] border-0 rounded-md p-3',
-          alertText: 'text-[#fafafa] text-sm',
+          // Alerts - matching destructive colors
+          alert: 'bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4',
+          alertText: 'text-white text-sm',
           
-          // Identity
+          // Identity preview
           identityPreview: 'bg-transparent p-0',
-          identityPreviewText: 'text-[#fafafa] text-sm',
-          identityPreviewEditButton: 'text-[#fafafa] hover:text-[#e4e4e7] text-sm transition-colors',
-          identityPreviewEditButtonIcon: 'text-[#fafafa] w-3.5 h-3.5',
+          identityPreviewText: 'text-white text-sm font-medium',
+          identityPreviewEditButton: 'text-[#d97757] hover:text-[#e88868] text-sm font-medium transition-colors',
+          identityPreviewEditButtonIcon: 'text-[#d97757] w-4 h-4',
           
-          // Footer
-          footer: 'border-0 bg-[#18181b] py-3',
-          footerAction: 'text-[#a1a1aa]',
-          footerActionLink: 'text-[#fafafa] hover:text-[#e4e4e7] text-sm transition-colors',
-          footerActionText: 'text-[#a1a1aa] text-sm',
+          // Footer - hidden for cleaner look
+          footer: 'hidden',
+          footerAction: 'hidden',
+          footerActionLink: 'hidden',
+          footerActionText: 'hidden',
           footerPages: 'hidden',
           
-          // Misc
+          // Misc elements
           scrollBox: 'scrollbar-none',
-          phoneInputBox: 'bg-[#27272a] border-0 rounded-md',
-          tableHead: 'text-[#a1a1aa] text-xs border-0',
-          breadcrumbs: 'text-[#a1a1aa]',
-          breadcrumbsItem: 'text-[#a1a1aa] hover:text-[#fafafa] text-sm',
-          breadcrumbsItemDivider: 'text-[#3f3f46]',
-          selectButton: 'bg-[#27272a] border-0 text-[#fafafa] rounded-md h-10',
-          selectButtonIcon: 'text-[#a1a1aa]',
-          selectOptionsContainer: 'bg-[#27272a] border border-[#3f3f46] rounded-lg shadow-lg',
-          selectOption: 'text-[#fafafa] hover:bg-[#3f3f46] px-3 py-2 text-sm',
-          otpCodeFieldInput: 'bg-[#27272a] border-0 text-[#fafafa] rounded-md w-10 h-11 text-center text-lg focus:ring-1 focus:ring-[#52525b]',
-          accordionTriggerButton: 'text-[#fafafa] hover:bg-[#27272a] rounded-md p-2 transition-colors',
-          accordionContent: 'bg-[#27272a] rounded-md p-3 mt-1',
+          phoneInputBox: 'bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl',
+          tableHead: 'text-[#8a8a8a] text-xs font-semibold uppercase tracking-wider border-0',
+          breadcrumbs: 'text-[#8a8a8a]',
+          breadcrumbsItem: 'text-[#8a8a8a] hover:text-white text-sm font-medium transition-colors',
+          breadcrumbsItemDivider: 'text-[#2a2a2a]',
+          selectButton: 'bg-[#1a1a1a] border border-[#2a2a2a] text-white rounded-xl h-11',
+          selectButtonIcon: 'text-[#8a8a8a]',
+          selectOptionsContainer: 'bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl shadow-2xl',
+          selectOption: 'text-white hover:bg-[#1a1a1a] px-4 py-2.5 text-sm font-medium transition-colors',
+          otpCodeFieldInput: 'bg-[#1a1a1a] border border-[#2a2a2a] text-white rounded-xl w-12 h-14 text-center text-xl font-semibold focus:ring-2 focus:ring-[#d97757]/50 focus:border-[#d97757] transition-all',
+          accordionTriggerButton: 'text-white hover:bg-[#1a1a1a] rounded-xl p-3 transition-all duration-200',
+          accordionContent: 'bg-[#1a1a1a] rounded-xl p-4 mt-2',
+          
+          // Active session card
+          activeDeviceIcon: 'text-[#d97757]',
+          activeDevice: 'bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4',
+          
+          // Verification
+          verificationLinkStatusBox: 'bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl',
+          verificationLinkStatusIconBox: 'bg-[#d97757]/20 rounded-full',
+          verificationLinkStatusIcon: 'text-[#d97757]',
+          verificationLinkStatusText: 'text-white',
         },
       }}
     >

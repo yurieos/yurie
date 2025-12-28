@@ -24,14 +24,14 @@ export default async function Home() {
   
   return (
     <SidebarProvider defaultOpen={true} className="h-full">
-      {/* Inset Sidebar */}
+      {/* Floating Sidebar */}
       {isClerkConfigured && userId && (
         <ConversationSidebar userId={userId} />
       )}
       
-      <SidebarInset className="overflow-hidden">
-        {/* Header with logo - matches sidebar header height */}
-        <header className="h-16 shrink-0 px-4 flex items-center border-b border-border/50">
+      <SidebarInset className="rounded-xl my-2 mr-2 ml-0 peer-data-[state=collapsed]:ml-2 border border-border shadow-sm transition-[margin] duration-300">
+        {/* Header with logo */}
+        <header className="h-14 shrink-0 px-4 flex items-center rounded-t-xl">
           <div className="flex-1 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AuthHeader userId={userId} position="left" />
@@ -43,20 +43,20 @@ export default async function Home() {
                 <Image
                   src="/yuriedark.png"
                   alt="Yurie logo"
-                  width={30}
-                  height={30}
+                  width={28}
+                  height={28}
                   className="block dark:hidden"
                   priority
                 />
                 <Image
                   src="/yurielight.png"
                   alt="Yurie logo"
-                  width={30}
-                  height={30}
+                  width={28}
+                  height={28}
                   className="hidden dark:block"
                   priority
                 />
-                <span className="text-xl font-semibold tracking-tight text-foreground lowercase">
+                <span className="text-lg font-semibold tracking-tight text-foreground lowercase">
                   <span className="text-primary">
                     yurie
                   </span>
@@ -71,7 +71,7 @@ export default async function Home() {
         </header>
 
         {/* Main content wrapper */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden rounded-b-xl">
           <Chat userId={userId || undefined} />
         </div>
       </SidebarInset>

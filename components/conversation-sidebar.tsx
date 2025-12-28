@@ -7,9 +7,9 @@ import {
   ClockCounterClockwise,
   Plus, 
   Trash, 
-  X
+  SignOut,
+  Gear
 } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
 import {
   Sidebar,
   SidebarContent,
@@ -18,13 +18,12 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarGroupContent,
-  SidebarFooter,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Conversation } from '@/lib/chat-history';
-import { UserButton, useUser } from '@clerk/nextjs';
+import { useUser, useClerk, SignOutButton } from '@clerk/nextjs';
+import Image from 'next/image';
 
 interface ConversationSidebarProps {
   userId: string;
@@ -35,21 +34,41 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { setOpenMobile, isMobile } = useSidebar();
   const { user } = useUser();
-  const userButtonRef = useRef<HTMLDivElement>(null);
+  const { openUserProfile } = useClerk();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Avoid hydration mismatch with Clerk components
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleUserButtonClick = () => {
-    // Find the button inside the Clerk UserButton and click it
-    const button = userButtonRef.current?.querySelector('button');
-    if (button) {
-      button.click();
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    if (profileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [profileDropdownOpen]);
+
+  const handleProfileClick = () => {
+    setProfileDropdownOpen(!profileDropdownOpen);
+  };
+
+  const handleManageAccount = () => {
+    setProfileDropdownOpen(false);
+    openUserProfile();
   };
 
   const loadConversations = useCallback(async () => {
@@ -118,101 +137,114 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString([], { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-  };
-
   return (
-    <Sidebar variant="inset">
-      <SidebarHeader className="h-16 shrink-0 p-0 flex flex-row items-center border-b border-sidebar-border/50">
-        <div className="flex-1 flex items-center justify-between w-full">
-          {mounted ? (
-            <div 
-              onClick={handleUserButtonClick}
-              className="flex items-center gap-2 px-3 py-1.5 w-full rounded-md hover:bg-sidebar-accent/50 transition-colors group cursor-pointer"
-            >
-              <div className="relative flex-shrink-0 flex items-center justify-center" ref={userButtonRef} onClick={(e) => e.stopPropagation()}>
-                <UserButton 
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-7 h-7 rounded-full ring-2 ring-transparent group-hover:ring-sidebar-primary/20 transition-all",
-                      userButtonTrigger: "focus:shadow-none focus:ring-0 focus:outline-none p-0",
-                    }
-                  }}
-                />
-              </div>
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm font-medium text-sidebar-foreground truncate group-hover:text-sidebar-accent-foreground transition-colors">
+    <Sidebar variant="floating">
+      <SidebarHeader className="shrink-0 p-0 flex flex-col">
+        {/* Profile section with dropdown */}
+        <div className="relative px-2 pt-0.5 pb-2 md:py-2" ref={dropdownRef}>
+          <div className="flex-1 flex items-center justify-between w-full">
+            {mounted ? (
+              <div 
+                onClick={handleProfileClick}
+                className="flex items-center gap-2 px-2 py-1.5 w-full cursor-pointer rounded-lg transition-all duration-200 hover:bg-sidebar-accent"
+              >
+                <div className="relative flex-shrink-0 flex items-center justify-center">
+                  {user?.imageUrl ? (
+                    <Image 
+                      src={user.imageUrl}
+                      alt="Profile"
+                      width={24}
+                      height={24}
+                      className="w-6 h-6 rounded-full"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-sidebar-accent flex items-center justify-center">
+                      <span className="text-[10px] font-medium text-sidebar-foreground/60">
+                        {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-sidebar-foreground truncate flex-1">
                   {user?.firstName || user?.username || 'User'}
                 </span>
-                <span className="text-xs text-sidebar-foreground/50 truncate group-hover:text-sidebar-foreground/70 transition-colors">
-                  {user?.primaryEmailAddress?.emailAddress || ''}
-                </span>
               </div>
-              {isMobile && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 flex-shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent active:scale-95 transition-all"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenMobile(false);
-                  }}
+            ) : (
+              <div className="flex items-center gap-2 px-2.5 py-3 w-full">
+                <div className="w-8 h-8 flex-shrink-0 rounded-full bg-sidebar-accent animate-pulse" />
+                <div className="flex flex-col gap-1 min-w-0">
+                  <div className="h-3 w-16 rounded bg-sidebar-accent animate-pulse" />
+                  <div className="h-2 w-24 rounded bg-sidebar-accent/60 animate-pulse" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Custom Dropdown Menu */}
+          {profileDropdownOpen && mounted && (
+            <div className="absolute top-full left-0 right-0 mt-1 mx-2 bg-sidebar border border-sidebar-border rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+              {/* Manage Account */}
+              <button
+                onClick={handleManageAccount}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar-accent transition-all duration-200 group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-sidebar-accent group-hover:bg-sidebar-accent/80 flex items-center justify-center transition-colors">
+                  <Gear className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors" weight="bold" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-sidebar-foreground">Manage account</span>
+                  <span className="text-[11px] text-sidebar-foreground/60">Profile, security & more</span>
+                </div>
+              </button>
+
+              {/* Divider */}
+              <div className="h-px bg-sidebar-border mx-3" />
+
+              {/* Sign Out */}
+              <SignOutButton redirectUrl="/">
+                <button
+                  onClick={() => setProfileDropdownOpen(false)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-sidebar-accent transition-all duration-200 group cursor-pointer"
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 w-full">
-              <div className="w-7 h-7 flex-shrink-0 rounded-full bg-sidebar-accent/50 animate-pulse" />
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="h-3.5 w-16 rounded bg-sidebar-accent/50 animate-pulse" />
-                <div className="h-2.5 w-24 rounded bg-sidebar-accent/30 animate-pulse" />
-              </div>
+                  <div className="w-8 h-8 rounded-lg bg-sidebar-accent group-hover:bg-destructive/20 flex items-center justify-center transition-colors">
+                    <SignOut className="h-4 w-4 text-sidebar-foreground/60 group-hover:text-destructive transition-colors" weight="bold" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-sidebar-foreground group-hover:text-destructive transition-colors">Sign out</span>
+                    <span className="text-[11px] text-sidebar-foreground/60">Log out of your account</span>
+                  </div>
+                </button>
+              </SignOutButton>
             </div>
           )}
         </div>
       </SidebarHeader>
       
-      <SidebarContent className="px-0 overflow-y-auto">
-        <SidebarGroup>
-          <SidebarGroupContent className="py-2">
+      <SidebarContent className="px-1 overflow-y-auto">
+        <SidebarGroup className="pb-0 pt-3">
+          <SidebarGroupContent className="py-0">
             <button
               onClick={handleNewChat}
-              className="group w-full flex items-center gap-2.5 h-9 px-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200
+                text-sidebar-foreground bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 active:scale-[0.98]"
             >
-              <div className="flex items-center justify-center w-5 h-5 rounded bg-zinc-200 dark:bg-zinc-700 group-hover:bg-zinc-300 dark:group-hover:bg-zinc-600 transition-colors">
-                <Plus className="h-3.5 w-3.5" />
-              </div>
-              <span className="font-medium text-[13px]">New Chat</span>
+              <Plus className="h-4 w-4" weight="bold" />
+              <span className="text-sm font-medium">New Chat</span>
             </button>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="flex-1 relative">
+        <SidebarGroup className="flex-1 relative pt-2">
           <button
             onClick={() => setHistoryExpanded(!historyExpanded)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/60 rounded-full transition-all cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200
+              text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent active:scale-[0.98]"
           >
-            <ClockCounterClockwise className="h-3.5 w-3.5 relative z-10" weight="bold" />
-            <span>History</span>
-            <div className="ml-auto flex items-center gap-1.5">
+            <ClockCounterClockwise className="h-4 w-4" weight="bold" />
+            <span className="text-xs uppercase tracking-wider font-medium">History</span>
+            <div className="ml-auto flex items-center gap-2">
               {conversations.length > 0 && (
-                <span className="text-[10px] text-sidebar-foreground/40">
+                <span className="text-[10px] bg-sidebar-accent/50 px-1.5 py-0.5 rounded-full">
                   {conversations.length}
                 </span>
               )}
@@ -222,50 +254,38 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
               />
             </div>
           </button>
-          <SidebarGroupContent className={`overflow-hidden transition-all duration-200 ${historyExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <SidebarGroupContent className={`overflow-hidden transition-all duration-300 ease-out ${historyExpanded ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
             <div className="relative">
-              {/* Vertical timeline line */}
-              {conversations.length > 0 && !isLoading && (
-                <div 
-                  className="absolute left-[19px] top-0 bottom-0 w-px bg-gradient-to-b from-sidebar-border/70 via-sidebar-border/50 to-sidebar-border/30"
-                  aria-hidden="true"
-                />
-              )}
               <SidebarMenu>
                 {isLoading ? (
-                  <div className="space-y-2 px-1 pl-8">
+                  <div className="space-y-1.5 px-1">
                     {[1, 2, 3].map((i) => (
                       <div 
                         key={i} 
-                        className="h-8 rounded-lg bg-sidebar-accent/50 animate-pulse"
+                        className="h-9 rounded-lg bg-sidebar-accent/30 animate-pulse"
                       />
                     ))}
                   </div>
                 ) : conversations.length === 0 ? (
                   <div className="text-center py-8 px-4">
-                    <div className="w-12 h-12 mx-auto rounded-xl bg-sidebar-accent/50 flex items-center justify-center mb-3">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-sidebar-accent/40 flex items-center justify-center mb-3">
                       <ChatTeardropText className="h-6 w-6 text-sidebar-foreground/30" />
                     </div>
-                    <p className="text-[13px] text-sidebar-foreground/70">No conversations yet</p>
-                    <p className="text-xs text-sidebar-foreground/50 mt-0.5">
+                    <p className="text-[13px] text-sidebar-foreground/60">No conversations yet</p>
+                    <p className="text-xs text-sidebar-foreground/40 mt-1">
                       Start a new chat to begin
                     </p>
                   </div>
                 ) : (
-                  conversations.map((conversation, index) => (
+                  conversations.map((conversation) => (
                     <SidebarMenuItem key={conversation.id} className="relative group/item">
-                      {/* Small dot on the timeline */}
-                      <div 
-                        className="absolute left-[17px] top-1/2 -translate-y-1/2 w-[5px] h-[5px] rounded-full bg-sidebar-border/70 transition-all duration-200 group-hover/item:bg-sidebar-foreground/50 group-hover/item:scale-110"
-                        aria-hidden="true"
-                      />
                       <SidebarMenuButton
                         onClick={() => handleLoadConversation(conversation.id)}
-                        className="h-auto py-2 px-2 pl-8 rounded-full hover:bg-sidebar-accent/60 active:scale-[0.98] transition-all duration-200"
+                        className="h-auto py-2 px-3 rounded-lg hover:bg-sidebar-accent active:scale-[0.98] transition-all duration-200"
                         tooltip={conversation.title}
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-sidebar-foreground truncate pr-1">
+                          <p className="text-sm text-sidebar-foreground truncate pr-1">
                             {conversation.title}
                           </p>
                         </div>
@@ -279,7 +299,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                               handleDeleteConversation(e as unknown as React.MouseEvent, conversation.id);
                             }
                           }}
-                          className="flex-shrink-0 p-1.5 rounded-full opacity-100 md:opacity-0 group-hover/item:opacity-100 hover:bg-destructive/10 active:bg-destructive/20 text-sidebar-foreground/40 hover:text-destructive transition-all cursor-pointer touch-manipulation"
+                          className="flex-shrink-0 p-1.5 -mr-1 rounded-md opacity-100 md:opacity-0 group-hover/item:opacity-100 hover:bg-destructive/10 active:bg-destructive/20 text-sidebar-foreground/40 hover:text-destructive transition-all cursor-pointer touch-manipulation"
                           aria-label="Delete conversation"
                         >
                           <Trash className="h-3.5 w-3.5" />
@@ -293,6 +313,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      
     </Sidebar>
   );
 }

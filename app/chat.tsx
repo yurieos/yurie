@@ -529,10 +529,17 @@ export function Chat({ userId }: ChatProps) {
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
   const [, setIsCheckingEnv] = useState<boolean>(true);
   const [pendingQuery, setPendingQuery] = useState<string>('');
-  const [conversationId, setConversationId] = useState<string>(() => uuidv4());
+  const [conversationId, setConversationId] = useState<string>('');
   const lastSavedRef = useRef<string>('');
   const abortRef = useRef<boolean>(false); // Track if current search should be aborted
   const idleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null); // Track idle check interval for cleanup
+  
+  // Generate conversation ID on client only to avoid hydration mismatch
+  useEffect(() => {
+    if (!conversationId) {
+      setConversationId(uuidv4());
+    }
+  }, [conversationId]);
 
   // Check for environment variables on mount
   useEffect(() => {
