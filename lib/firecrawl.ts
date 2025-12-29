@@ -229,7 +229,7 @@ export const scrapeTool = tool({
     "Scrape a single URL and convert it to clean, LLM-ready markdown. " +
     "Use this for deep extraction of specific pages like documentation, articles, or research papers. " +
     "Returns structured markdown with preserved headers, tables, and formatting.",
-  parameters: z.object({
+  inputSchema: z.object({
     url: z
       .string()
       .url()
@@ -303,7 +303,7 @@ export const crawlTool = tool({
     "Use this for comprehensive research across documentation sites, research series, or technical wikis. " +
     "Returns multiple pages as structured markdown, enabling cross-reference analysis. " +
     "WARNING: This is a heavier operation - use 'map' first to scout the site structure if unsure.",
-  parameters: z.object({
+  inputSchema: z.object({
     url: z
       .string()
       .url()
@@ -413,7 +413,7 @@ export const mapTool = tool({
     "Use this BEFORE crawling to understand what content is available. " +
     "Returns a list of URLs that can then be selectively scraped or crawled. " +
     "This is fast and lightweight - the Explorer's reconnaissance tool.",
-  parameters: z.object({
+  inputSchema: z.object({
     url: z
       .string()
       .url()
@@ -484,7 +484,7 @@ export const searchTool = tool({
     "Search the web using Firecrawl and get content from results. " +
     "Returns search results with scraped markdown content for each result. " +
     "Use this for finding and extracting information from multiple web sources at once.",
-  parameters: z.object({
+  inputSchema: z.object({
     query: z
       .string()
       .describe("The search query to find relevant web pages."),
@@ -596,7 +596,7 @@ export class FirecrawlClient {
       });
       
       // Race the scraping against the timeout
-      const scrapePromise = this.client.scrapeUrl(url, {
+      const scrapePromise = this.client.scrape(url, {
         formats: ['markdown', 'html'],
       });
       
@@ -839,8 +839,8 @@ export class FirecrawlClient {
       // Add scrapeOptions to get content with search results
       if (options?.scrapeOptions !== false) {
         // Determine formats based on whether screenshots are requested
-        const formats = options?.includeScreenshots 
-          ? ['markdown', 'screenshot@fullPage']
+        const formats: Array<string | { type: 'screenshot'; fullPage?: boolean }> = options?.includeScreenshots 
+          ? ['markdown', { type: 'screenshot', fullPage: true }]
           : ['markdown'];
         
         searchParams.scrapeOptions = {

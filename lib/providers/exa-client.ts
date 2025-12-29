@@ -12,7 +12,7 @@ export interface ExaSearchResult {
 
 export interface ExaSearchResponse {
   results: ExaSearchResult[];
-  autopromptString?: string;
+  context?: string;
 }
 
 export interface ExaResearchResponse {
@@ -52,8 +52,8 @@ export class ExaClient {
     }
   ): Promise<ExaSearchResponse> {
     try {
-      // Build search options
-      const searchOptions: Parameters<typeof this.client.searchAndContents>[1] = {
+      // Build search options for exa-js v2
+      const searchOptions: Record<string, unknown> = {
         numResults: options?.numResults ?? 10,
         type: options?.type ?? 'auto',
         useAutoprompt: options?.useAutoprompt ?? true,
@@ -61,23 +61,25 @@ export class ExaClient {
         excludeDomains: options?.excludeDomains,
         startPublishedDate: options?.startPublishedDate,
         endPublishedDate: options?.endPublishedDate,
-        text: { maxCharacters: 4000 },
-        highlights: { numSentences: 5, highlightsPerUrl: 3 },
+        contents: {
+          text: { maxCharacters: 4000 },
+          highlights: { numSentences: 5, highlightsPerUrl: 3 },
+        },
       };
       
-      // Add category if provided (cast to any to handle potential API version differences)
+      // Add category if provided
       if (options?.category) {
-        (searchOptions as Record<string, unknown>).category = options.category;
+        searchOptions.category = options.category;
       }
       
-      const response = await this.client.searchAndContents(query, searchOptions);
+      const response = await this.client.search(query, searchOptions);
 
       return {
-        autopromptString: response.autopromptString,
+        context: response.context,
         results: response.results.map((r) => ({
           url: r.url,
           title: r.title || '',
-          content: r.text,
+          content: (r as unknown as { text?: string }).text,
           highlights: (r as unknown as { highlights?: string[] }).highlights,
           score: r.score,
           publishedDate: r.publishedDate,
@@ -102,19 +104,21 @@ export class ExaClient {
     }
   ): Promise<ExaSearchResult[]> {
     try {
-      const response = await this.client.findSimilarAndContents(url, {
+      const response = await this.client.findSimilar(url, {
         numResults: options?.numResults ?? 10,
         includeDomains: options?.includeDomains,
         excludeDomains: options?.excludeDomains,
-        text: { maxCharacters: 3000 },
-        highlights: { numSentences: 3 },
+        contents: {
+          text: { maxCharacters: 3000 },
+          highlights: { numSentences: 3 },
+        },
       });
 
       return response.results.map((r) => ({
         url: r.url,
         title: r.title || '',
-        content: r.text,
-        highlights: r.highlights,
+        content: (r as unknown as { text?: string }).text,
+        highlights: (r as unknown as { highlights?: string[] }).highlights,
         score: r.score,
         publishedDate: r.publishedDate,
         author: r.author,

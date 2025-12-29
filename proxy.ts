@@ -13,8 +13,8 @@ const isPublicRoute = createRouteMatcher([
   '/api(.*)',
 ])
 
-// Middleware function
-async function middleware(request: NextRequest) {
+// Proxy function (formerly middleware in Next.js < 16)
+async function proxy(request: NextRequest) {
   // If Clerk is not configured, just pass through
   if (!isClerkConfigured) {
     return NextResponse.next()
@@ -29,7 +29,7 @@ async function middleware(request: NextRequest) {
   })(request, {} as never)
 }
 
-export default middleware
+export default proxy
 
 export const config = {
   matcher: [

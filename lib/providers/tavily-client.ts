@@ -43,7 +43,7 @@ export class TavilyClient {
         maxResults: options?.maxResults ?? 8,
         searchDepth: options?.searchDepth ?? 'advanced',
         includeAnswer: options?.includeAnswer ?? true,
-        includeRawContent: true,
+        includeRawContent: 'text',
         includeDomains: options?.includeDomains,
         excludeDomains: options?.excludeDomains,
       });

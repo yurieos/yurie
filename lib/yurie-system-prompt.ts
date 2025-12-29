@@ -408,16 +408,3 @@ Format:
 ### [Short title capturing the essence]
 **What they need:** [Key concepts and information types, comma-separated]`;
 
-// =============================================================================
-// EXPORTS
-// =============================================================================
-
-export {
-  YURIE_IDENTITY,
-  YURIE_RESEARCH_PRINCIPLES,
-  YURIE_EMOTIONAL_INTELLIGENCE,
-  YURIE_OUTPUT_STYLE,
-  YURIE_EVIDENCE_SYSTEM,
-  YURIE_SAFETY,
-};
-

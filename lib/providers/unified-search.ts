@@ -52,7 +52,7 @@ export interface UnifiedSearchResult {
   classification: QueryClassification;
   preAnswer?: string; // Tavily can provide a pre-synthesized answer
   metadata?: {
-    autopromptString?: string;
+    exaContext?: string;
     totalResults?: number;
   };
 }
@@ -474,7 +474,7 @@ export class UnifiedSearchProvider {
     }
 
     let results: ExaSearchResult[];
-    let autopromptString: string | undefined;
+    let exaContext: string | undefined;
 
     // Use different Exa modes based on classification
     switch (classification.suggestedMode) {
@@ -501,7 +501,7 @@ export class UnifiedSearchProvider {
             excludeDomains: options.excludeDomains,
           });
           results = response.results;
-          autopromptString = response.autopromptString;
+          exaContext = response.context;
         }
         break;
       
@@ -532,7 +532,7 @@ export class UnifiedSearchProvider {
           excludeDomains: options.excludeDomains,
         });
         results = response.results;
-        autopromptString = response.autopromptString;
+        exaContext = response.context;
     }
 
     // Convert to unified Source format
@@ -549,7 +549,7 @@ export class UnifiedSearchProvider {
       provider: 'exa',
       classification,
       metadata: {
-        autopromptString,
+        exaContext,
         totalResults: results.length,
       },
     };

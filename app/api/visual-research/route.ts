@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
             searchResult = await firecrawl.search(query, {
               limit: 5,
               scrapeOptions: {
-                formats: ['markdown', 'screenshot@fullPage']
+                formats: ['markdown', { type: 'screenshot', fullPage: true }]
               }
             });
           } catch (searchError) {
