@@ -1,8 +1,6 @@
 'use client';
 
 import { useRef, useCallback, useState } from 'react';
-import { readStreamableValue } from 'ai/rsc';
-import { search as searchAction } from '@/app/search';
 import { SearchEvent, Source } from '@/lib/types';
 
 export interface SearchState {
@@ -26,12 +24,13 @@ export interface ConversationContext {
   response: string;
 }
 
-const IDLE_TIMEOUT_MS = 5000;
+// Timeout for idle connection (no data received)
+const IDLE_TIMEOUT_MS = 60000; // 60 seconds
 const UPDATE_THROTTLE_MS = 50;
 
 /**
  * Custom hook for managing search operations with streaming support.
- * Encapsulates all streaming logic, abort handling, and idle timeout management.
+ * Uses SSE (Server-Sent Events) for reliable streaming instead of ai/rsc.
  */
 export function useSearch() {
   const [state, setState] = useState<SearchState>({
@@ -43,26 +42,42 @@ export function useSearch() {
   });
 
   // Refs for abort and cleanup
-  const abortRef = useRef<boolean>(false);
-  const idleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEventTimeRef = useRef<number>(Date.now());
   const lastUpdateTimeRef = useRef<number>(0);
 
   /**
-   * Cleanup function to clear intervals and reset state
+   * Cleanup function to clear timeouts and abort controller
    */
   const cleanup = useCallback(() => {
-    if (idleIntervalRef.current) {
-      clearInterval(idleIntervalRef.current);
-      idleIntervalRef.current = null;
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
     }
+  }, []);
+
+  /**
+   * Reset the idle timeout
+   */
+  const resetIdleTimeout = useCallback((
+    onTimeout: () => void
+  ) => {
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+    }
+    idleTimeoutRef.current = setTimeout(onTimeout, IDLE_TIMEOUT_MS);
+    lastEventTimeRef.current = Date.now();
   }, []);
 
   /**
    * Abort the current search operation
    */
   const abort = useCallback(() => {
-    abortRef.current = true;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     cleanup();
     setState(prev => ({ ...prev, isSearching: false }));
   }, [cleanup]);
@@ -71,7 +86,7 @@ export function useSearch() {
    * Reset the search state for a new search
    */
   const reset = useCallback(() => {
-    abortRef.current = false;
+    abort();
     setState({
       isSearching: false,
       streamedContent: '',
@@ -79,10 +94,10 @@ export function useSearch() {
       followUpQuestions: [],
       error: null,
     });
-  }, []);
+  }, [abort]);
 
   /**
-   * Execute a search with streaming support
+   * Execute a search with streaming support using SSE
    */
   const search = useCallback(async (
     query: string,
@@ -94,9 +109,11 @@ export function useSearch() {
     sources: Source[];
     followUpQuestions: string[];
   } | null> => {
-    // Reset abort flag at start
-    abortRef.current = false;
-    cleanup();
+    // Abort any existing search
+    abort();
+    
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
 
     setState(prev => ({
       ...prev,
@@ -108,52 +125,106 @@ export function useSearch() {
     }));
 
     let streamedContent = '';
-    let finalContent = '';
     let sources: Source[] = [];
     let followUpQuestions: string[] = [];
     let streamingStarted = false;
     let receivedFinalResult = false;
-    let timedOut = false;
 
-    // Setup idle timeout checker
-    lastEventTimeRef.current = Date.now();
-    idleIntervalRef.current = setInterval(() => {
-      if (abortRef.current) {
+    // Setup idle timeout handler
+    const handleIdleTimeout = () => {
+      console.warn('[useSearch] Idle timeout reached, finalizing with current content');
+      
+      if (!receivedFinalResult && streamingStarted && streamedContent) {
+        receivedFinalResult = true;
         cleanup();
-        return;
-      }
 
-      const idleTime = Date.now() - lastEventTimeRef.current;
-      if (idleTime > IDLE_TIMEOUT_MS && streamingStarted && !receivedFinalResult && !timedOut) {
-        timedOut = true;
-        cleanup();
-        
-        // Finalize with current content
         setState(prev => ({
           ...prev,
           isSearching: false,
-          streamedContent: streamedContent,
+          streamedContent,
         }));
-        
+
         callbacks.onComplete?.(streamedContent, sources, followUpQuestions);
       }
-    }, 1000);
+    };
+
+    resetIdleTimeout(handleIdleTimeout);
 
     try {
-      const { stream } = await searchAction(query, context, firecrawlApiKey);
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(firecrawlApiKey ? { 'X-Firecrawl-API-Key': firecrawlApiKey } : {}),
+        },
+        body: JSON.stringify({ query, context, apiKey: firecrawlApiKey }),
+        signal: abortControllerRef.current.signal,
+      });
 
-      for await (const event of readStreamableValue(stream)) {
-        lastEventTimeRef.current = Date.now();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
-        // Check abort/timeout conditions
-        if (timedOut || abortRef.current) {
-          if (abortRef.current) {
-            cleanup();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response stream available');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          // Process any remaining buffer content
+          if (buffer.trim()) {
+            const lines = buffer.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const event = JSON.parse(line.slice(6)) as SearchEvent;
+                  processEvent(event);
+                } catch {
+                  // Ignore parse errors for incomplete data
+                }
+              }
+            }
           }
           break;
         }
 
-        if (!event) continue;
+        // Reset idle timeout on data received
+        resetIdleTimeout(handleIdleTimeout);
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr) as SearchEvent;
+            processEvent(event);
+          } catch (parseError) {
+            // Ignore parse errors for incomplete JSON
+            if (!(parseError instanceof SyntaxError)) {
+              console.error('[useSearch] Parse error:', parseError);
+            }
+          }
+        }
+      }
+
+      function processEvent(event: SearchEvent) {
+        if (receivedFinalResult || abortControllerRef.current?.signal.aborted) {
+          return;
+        }
 
         // Forward all events to callback
         callbacks.onEvent?.(event);
@@ -177,35 +248,52 @@ export function useSearch() {
           }
         }
 
+        // Collect sources from found events
+        if (event.type === 'found' && event.sources) {
+          sources = [...sources, ...event.sources];
+        }
+
         // Handle final result
         if (event.type === 'final-result') {
-          finalContent = event.content;
-          sources = event.sources || [];
-          followUpQuestions = event.followUpQuestions || [];
           receivedFinalResult = true;
-
           cleanup();
 
-          // Use accumulated content or final content
-          const completeContent = streamedContent || finalContent;
+          const finalContent = streamedContent || event.content || '';
+          sources = event.sources || sources;
+          followUpQuestions = event.followUpQuestions || [];
 
           setState({
             isSearching: false,
-            streamedContent: completeContent,
+            streamedContent: finalContent,
             sources,
             followUpQuestions,
             error: null,
           });
 
-          callbacks.onComplete?.(completeContent, sources, followUpQuestions);
+          callbacks.onComplete?.(finalContent, sources, followUpQuestions);
+        }
+
+        // Handle error events from the stream
+        if (event.type === 'error') {
+          cleanup();
+          const errorMessage = event.error || 'An error occurred';
           
-          return { content: completeContent, sources, followUpQuestions };
+          setState(prev => ({
+            ...prev,
+            isSearching: false,
+            error: errorMessage,
+          }));
+
+          callbacks.onError?.(errorMessage);
         }
       }
 
-      // Stream ended without final-result
-      if (streamingStarted && streamedContent && !abortRef.current && !receivedFinalResult) {
-        cleanup();
+      // Stream ended
+      cleanup();
+
+      // If we got content but no final-result, still complete successfully
+      if (streamingStarted && streamedContent && !receivedFinalResult) {
+        receivedFinalResult = true;
         
         setState(prev => ({
           ...prev,
@@ -217,7 +305,10 @@ export function useSearch() {
         return { content: streamedContent, sources, followUpQuestions };
       }
 
-      cleanup();
+      if (receivedFinalResult) {
+        return { content: streamedContent, sources, followUpQuestions };
+      }
+
       setState(prev => ({ ...prev, isSearching: false }));
       return null;
 
@@ -225,12 +316,13 @@ export function useSearch() {
       cleanup();
 
       // Don't report errors if aborted
-      if (abortRef.current) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        setState(prev => ({ ...prev, isSearching: false }));
         return null;
       }
 
       const errorMessage = error instanceof Error ? error.message : 'An error occurred during search';
-      
+
       setState(prev => ({
         ...prev,
         isSearching: false,
@@ -240,16 +332,15 @@ export function useSearch() {
       callbacks.onError?.(errorMessage);
       throw error;
     }
-  }, [cleanup]);
+  }, [abort, cleanup, resetIdleTimeout]);
 
   return {
     // State
     ...state,
-    
+
     // Actions
     search,
     abort,
     reset,
   };
 }
-

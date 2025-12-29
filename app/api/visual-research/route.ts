@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import OpenAI from 'openai';
+import { buildVisualResearchPrompt } from '@/lib/yurie-system-prompt';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -202,29 +203,34 @@ export async function POST(req: NextRequest) {
             })
             .join('\n\n---\n\n');
 
-          const systemPrompt = `You are Yurie, an intelligent research assistant. Synthesize the provided sources to give a comprehensive answer.
+          // Get current date for the unified Yurie prompt
+          const now = new Date();
+          const dateStr = now.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          const currentDateContext = `Today's date is ${dateStr}. Current year: ${now.getFullYear()}.`;
 
-Guidelines:
-1. Use citations [1], [2], etc. to reference sources
-2. Be thorough yet concise - aim for clarity
-3. If sources have different perspectives, acknowledge them
-4. Structure your response with clear sections if the topic is complex
-5. Start with a direct answer, then provide supporting details
+          // Use the unified Yurie prompt (human-like researcher personality)
+          const systemPrompt = `${buildVisualResearchPrompt(currentDateContext)}
 
-Sources:
+---
+
+The following sources are available (use [1], [2], etc. for inline citations, but do NOT list them at the end - the UI displays sources separately):
+
 ${contextContent}`;
 
           let completion;
           try {
             completion = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
+              model: 'gpt-5-mini-2025-08-07',
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: query }
               ],
               stream: true,
-              max_tokens: 2000,
-              temperature: 0.7,
             });
           } catch (openaiError) {
             console.error('[Visual Research] OpenAI error:', openaiError);

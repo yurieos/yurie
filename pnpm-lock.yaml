@@ -29,6 +29,9 @@ importers:
       '@langchain/openai':
         specifier: ^0.5.11
         version: 0.5.11(@langchain/core@0.3.57(openai@6.15.0(zod@3.25.42)))
+      '@lucide/lab':
+        specifier: ^0.1.2
+        version: 0.1.2
       '@mendable/firecrawl-js':
         specifier: ^1.25.1
         version: 1.25.2
@@ -1065,6 +1068,9 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/core': '>=0.3.48 <0.4.0'
+
+  '@lucide/lab@0.1.2':
+    resolution: {integrity: sha512-VprF2BJa7ZuTGOhUd5cf8tHJXyL63wdxcGieAiVVoR9hO0YmPsnZO0AGqDiX2/br+/MC6n8BoJcmPilltOXIJA==}
 
   '@mendable/firecrawl-js@1.25.2':
     resolution: {integrity: sha512-zkJ3PiSXQYJpjRTi1yyxzvzkLOCUkT3aXbZUiL5nY00ipbXgAZmA8qGXk8Twrvx9RH3A3EfITW6l9jQXV8JZoQ==}
@@ -5553,6 +5559,8 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - ws
+
+  '@lucide/lab@0.1.2': {}
 
   '@mendable/firecrawl-js@1.25.2':
     dependencies:

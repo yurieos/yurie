@@ -21,8 +21,6 @@ import { Suggestions } from "@/components/suggestions";
 import { Loader2, CornerRightUp, ChevronRight } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useSearch, type ConversationContext } from '@/hooks/use-search';
-import { search } from './search';
-import { readStreamableValue } from 'ai/rsc';
 
 interface ChatProps {
   userId?: string;
@@ -38,6 +36,7 @@ export function Chat({ userId }: ChatProps) {
   const [, setIsCheckingEnv] = useState<boolean>(true);
   const [pendingQuery, setPendingQuery] = useState<string>('');
   const [conversationId, setConversationId] = useState<string>('');
+  const [conversationMode, setConversationMode] = useState<'default' | 'visual'>('default');
   
   // Refs
   const lastSavedRef = useRef<string>('');
@@ -123,12 +122,20 @@ export function Chat({ userId }: ChatProps) {
     return () => clearTimeout(saveTimer);
   }, [messages, userId, conversationId]);
 
+  // Notify header about message state changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('messagesChanged', { 
+      detail: { hasMessages: messages.length > 0, isVisualMode: conversationMode === 'visual' } 
+    }));
+  }, [messages.length, conversationMode]);
+
   // Handle new chat event
   useEffect(() => {
     const handleNewChat = () => {
       abortRef.current = true;
       abortSearch();
       setMessages([]);
+      setConversationMode('default');
       setInput('');
       setConversationId(uuidv4());
       lastSavedRef.current = '';
@@ -144,6 +151,11 @@ export function Chat({ userId }: ChatProps) {
     const handleLoadConversation = async (event: Event) => {
       const customEvent = event as CustomEvent;
       const targetConversationId = customEvent.detail.conversationId;
+      const mode = customEvent.detail.mode as 'default' | 'visual' | undefined;
+      const loadedMode = mode || 'default';
+
+      // Set conversation mode from event
+      setConversationMode(loadedMode);
 
       if (!userId) return;
 
@@ -208,6 +220,13 @@ export function Chat({ userId }: ChatProps) {
           setMessages(displayMessages);
           setConversationId(targetConversationId);
           lastSavedRef.current = JSON.stringify(loadedMessages);
+          
+          // Manually dispatch event with loaded mode to ensure header updates correctly
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('messagesChanged', { 
+              detail: { hasMessages: displayMessages.length > 0, isVisualMode: loadedMode === 'visual' } 
+            }));
+          }, 0);
         }
       } catch (error) {
         console.error('Failed to load conversation:', error);
@@ -290,8 +309,8 @@ export function Chat({ userId }: ChatProps) {
   // Perform search with streaming
   const performSearch = async (query: string) => {
     abortRef.current = false;
-    const assistantMsgId = (Date.now() + 1).toString();
-    const resultMsgId = (Date.now() + 2).toString();
+    const assistantMsgId = uuidv4();
+    const resultMsgId = uuidv4();
     const eventsRef: SearchEvent[] = [];
     let streamingStarted = false;
 
@@ -382,7 +401,7 @@ export function Chat({ userId }: ChatProps) {
             setMessages(prev => [
               ...prev.filter(msg => msg.id !== assistantMsgId && msg.id !== resultMsgId),
               {
-                id: Date.now().toString(),
+                id: uuidv4(),
                 role: 'assistant',
                 type: 'error',
                 content: errorMsg,
@@ -398,7 +417,7 @@ export function Chat({ userId }: ChatProps) {
       setMessages(prev => [
         ...prev.filter(msg => msg.id !== assistantMsgId && msg.id !== resultMsgId),
         {
-          id: Date.now().toString(),
+          id: uuidv4(),
           role: 'assistant',
           type: 'error',
           content: error instanceof Error ? error.message : 'An error occurred during search',
@@ -418,7 +437,7 @@ export function Chat({ userId }: ChatProps) {
       setPendingQuery(userMessage);
       setShowApiKeyModal(true);
       setMessages(prev => [...prev, {
-        id: Date.now().toString(),
+        id: uuidv4(),
         role: 'user',
         type: 'text',
         content: userMessage,
@@ -427,7 +446,7 @@ export function Chat({ userId }: ChatProps) {
     }
 
     setMessages(prev => [...prev, {
-      id: Date.now().toString(),
+      id: uuidv4(),
       role: 'user',
       type: 'text',
       content: userMessage,

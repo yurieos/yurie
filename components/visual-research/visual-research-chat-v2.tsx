@@ -3,11 +3,12 @@
 // Force refresh after icon update
 import { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Loader2, CornerRightUp, Copy, Check, AlertCircle, Map, Rocket, History, Atom, Zap } from 'lucide-react';
+import { Loader2, CornerRightUp, Copy, Check, AlertCircle, Compass, Users, Palette, Wind, Brain } from 'lucide-react';
 import { SearchResultsDisplay } from './search-results-display';
 import { MarkdownRenderer } from '@/app/markdown-renderer';
 import { cn } from '@/lib/utils';
 import type { VisualSearchResult, Source, StorableMessage } from '@/lib/types';
+import { useUser } from '@clerk/nextjs';
 
 interface Message {
   id: string;
@@ -25,24 +26,24 @@ interface SearchState {
 
 const SUGGESTED_QUERIES = [
   {
-    text: "The search for the lost Amber Room: History's most valuable missing treasure",
-    icon: Map
+    text: "How did the ancient Nazca people create giant geoglyphs only visible from the sky?",
+    icon: Compass
   },
   {
-    text: "How would humans survive on a planet orbiting a red dwarf star?",
-    icon: Rocket
+    text: "What made the Stanford Prison Experiment spiral into horror in just 6 days?",
+    icon: Users
   },
   {
-    text: "The Antikythera Mechanism: Decoding history's first 'analog computer'",
-    icon: History
+    text: "How did forger Han van Meegeren create fake Vermeers that fooled the Nazis?",
+    icon: Palette
   },
   {
-    text: "Mapping the Cosmic Web: The hidden structure connecting our universe",
-    icon: Atom
+    text: "What causes the 'Sailing Stones' of Death Valley to move completely on their own?",
+    icon: Wind
   },
   {
-    text: "The science of movie magic: How physics is bent in modern blockbusters",
-    icon: Zap
+    text: "How did Phineas Gage survive an iron rod through his brain and change neuroscience?",
+    icon: Brain
   }
 ];
 
@@ -67,6 +68,7 @@ export function VisualResearchChat({ userId, onMessagesChange }: VisualResearchC
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSavedRef = useRef<string>('');
+  const { user } = useUser();
 
   // Generate conversation ID on client only
   useEffect(() => {
@@ -82,6 +84,27 @@ export function VisualResearchChat({ userId, onMessagesChange }: VisualResearchC
   useEffect(() => {
     onMessagesChange?.(messages.length > 0);
   }, [messages.length, onMessagesChange]);
+
+  // Handle new visual chat event
+  useEffect(() => {
+    const handleNewChat = () => {
+      setMessages([]);
+      setInput('');
+      setIsSearching(false);
+      setSearchState({ phase: 'idle' });
+      setShowSuggestions(true);
+      setSearchResults([]);
+      setCurrentQuery('');
+      setCurrentScrapingUrl('');
+      setScreenshots([]);
+      setShowBrowser(true);
+      setConversationId(uuidv4());
+      lastSavedRef.current = '';
+    };
+
+    window.addEventListener('newVisualChat', handleNewChat);
+    return () => window.removeEventListener('newVisualChat', handleNewChat);
+  }, []);
 
   // Save conversation when messages change (debounced)
   useEffect(() => {
@@ -301,7 +324,7 @@ export function VisualResearchChat({ userId, onMessagesChange }: VisualResearchC
         {/* Hero text */}
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-serif font-medium text-foreground animate-fade-up">
-            Visual Research
+            Hello, <em>{user?.firstName || 'there'}</em>.
           </h1>
           <p className="mt-3 text-body-sm text-muted-foreground animate-fade-up max-w-lg mx-auto" style={{ animationDelay: '100ms' }}>
             Peek into Yurie's browser as it researches in real-time

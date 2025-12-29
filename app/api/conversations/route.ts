@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     const { userId: authUserId } = await auth();
     const body = await request.json();
-    const { userId, conversationId, messages, title } = body;
+    const { userId, conversationId, messages, title, mode } = body;
 
     // Verify the user is authenticated and saving their own data
     if (!authUserId || authUserId !== userId) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const success = await saveConversation(userId, conversationId, messages, title);
+    const success = await saveConversation(userId, conversationId, messages, title, mode);
     
     if (!success) {
       return NextResponse.json(

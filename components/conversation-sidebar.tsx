@@ -9,7 +9,7 @@ import {
   Trash2, 
   LogOut,
   Settings,
-  Eye
+  Glasses
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -111,10 +111,10 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
     if (isMobile) setOpenMobile(false);
   };
 
-  const handleLoadConversation = (conversationId: string) => {
+  const handleLoadConversation = (conversationId: string, mode?: 'default' | 'visual') => {
     // Dispatch event to load this conversation
     window.dispatchEvent(new CustomEvent('loadConversation', { 
-      detail: { conversationId } 
+      detail: { conversationId, mode } 
     }));
     if (isMobile) setOpenMobile(false);
   };
@@ -195,12 +195,8 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-sidebar-foreground">Manage account</span>
-                  <span className="text-[11px] text-sidebar-foreground/60">Profile, security & more</span>
                 </div>
               </button>
-
-              {/* Divider */}
-              <div className="h-px bg-sidebar-border mx-3" />
 
               {/* Sign Out */}
               <SignOutButton redirectUrl="/">
@@ -213,7 +209,6 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-sidebar-foreground group-hover:text-destructive transition-colors">Sign out</span>
-                    <span className="text-[11px] text-sidebar-foreground/60">Log out of your account</span>
                   </div>
                 </button>
               </SignOutButton>
@@ -228,7 +223,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
             <button
               onClick={handleNewChat}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg interactive
-                text-sidebar-foreground bg-sidebar-accent hover:bg-sidebar-accent/80"
+                text-secondary-foreground bg-secondary hover:bg-secondary/80"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
               <span className="text-sm font-medium">New Chat</span>
@@ -238,9 +233,9 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg interactive
                 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
             >
-              <Eye className="h-4 w-4" />
-              <span className="text-sm">Visual Mode</span>
-              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+              <Glasses className="h-4 w-4" />
+              <span className="text-sm">Visual Research</span>
+              <span className="ml-auto text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                 Beta
               </span>
             </Link>
@@ -254,7 +249,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
               text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Clock className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wider font-medium">History</span>
+            <span className="text-sm font-medium">History</span>
             <div className="ml-auto flex items-center gap-2">
               {conversations.length > 0 && (
                 <span className="text-[10px] bg-sidebar-accent/50 px-1.5 py-0.5 rounded-full">
@@ -289,17 +284,30 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                     </p>
                   </div>
                 ) : (
-                  conversations.map((conversation) => (
+                  conversations.map((conversation) => {
+                    // Detect visual mode from mode field or legacy [Visual] prefix
+                    const isVisual = conversation.mode === 'visual' || conversation.title.startsWith('[Visual]');
+                    // Strip [Visual] prefix from display if present
+                    const displayTitle = conversation.title.startsWith('[Visual]') 
+                      ? conversation.title.replace('[Visual] ', '').replace('[Visual]', '')
+                      : conversation.title;
+                    
+                    return (
                     <SidebarMenuItem key={conversation.id} className="relative group/item">
                       <SidebarMenuButton
-                        onClick={() => handleLoadConversation(conversation.id)}
+                        onClick={() => handleLoadConversation(conversation.id, isVisual ? 'visual' : 'default')}
                         className="h-auto py-2 px-3 rounded-lg hover:bg-sidebar-accent interactive"
-                        tooltip={conversation.title}
+                        tooltip={displayTitle}
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-sidebar-foreground truncate pr-1">
-                            {conversation.title}
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <p className="text-sm text-sidebar-foreground truncate">
+                            {displayTitle}
                           </p>
+                          {isVisual && (
+                            <span className="flex-shrink-0 inline-flex items-center text-[9px] uppercase tracking-wider font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded" title="Visual Research">
+                              <Glasses className="h-2.5 w-2.5" />
+                            </span>
+                          )}
                         </div>
                         <div
                           role="button"
@@ -318,7 +326,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
                         </div>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  ))
+                  );})
                 )}
               </SidebarMenu>
             </div>

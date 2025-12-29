@@ -17,6 +17,7 @@ import {
 } from './types';
 import { ResponsesAPIClient, ResponseMessage } from './openai-responses';
 import { buildResearchPrompt, detectResearchDomain } from './research-prompt';
+import { buildNormalResearchPrompt, YURIE_QUERY_ANALYSIS, YURIE_FOLLOWUP_PROMPT } from './yurie-system-prompt';
 import { enrichSources, buildResearchContext } from './evidence-classifier';
 
 // Re-export types for backwards compatibility
@@ -963,13 +964,6 @@ export class LangGraphSearchEngine {
           const researchContext = state.researchContext || 
             buildResearchContext(enrichedSources, researchDomain, state.query);
           
-          if (eventCallback) {
-            eventCallback({
-              type: 'thinking',
-              message: `Research domain: ${researchDomain} | Confidence: ${researchContext.overallConfidence}%`
-            });
-          }
-          
           // Generate answer with Research Intelligence Protocol
           const answerResult = await generateStreamingAnswer(
             state.query,
@@ -1233,14 +1227,7 @@ export class LangGraphSearchEngine {
     const messages: ResponseMessage[] = [
       { role: 'system', content: `${this.getCurrentDateContext()}
 
-Analyze the query. Output in this markdown format:
-
-### [Short descriptive title]
-**What we need to find:** [Key concepts as descriptive phrases, comma-separated. Cover: core concepts, mechanisms, use cases, tradeoffs. 10-15 phrases max.]
-
-Example:
-### Neural network learning mechanisms
-**What we need to find:** forward propagation, backpropagation algorithm, gradient descent variants (SGD, Adam), loss functions (MSE, cross-entropy), weight initialization, activation functions (ReLU, sigmoid), batch vs online learning, learning rate tuning, regularization, overfitting prevention
+${YURIE_QUERY_ANALYSIS}
 
 Rules:
 - Use short descriptive phrases, not full sentences
@@ -1360,12 +1347,12 @@ ${sources.slice(0, SEARCH_CONFIG.MAX_SOURCES_TO_CHECK).map(s => {
 
   private async extractSubQueries(query: string): Promise<Array<{ question: string; searchQuery: string }>> {
     const messages: ResponseMessage[] = [
-      { role: 'system', content: `You are Yurie, an AI search assistant. Extract the individual factual questions from this query.
+      { role: 'system', content: `You're Yurie—a researcher, friend, and collaborator. Extract the individual factual questions from this query.
 
 IMPORTANT: 
 - If the user asks about YOU (your name, who you are, your capabilities), interpret this as a question about "Yurie".
-- Do NOT assume you are ChatGPT, OpenAI, or any other model. You are Yurie.
-- If the query is "what is your name", the question is "Who is Yurie?" and the search query is "Yurie AI search assistant".
+- You're not ChatGPT, OpenAI, Claude, or any other model. You're Yurie—a one-of-a-kind research intelligence.
+- If the query is "what is your name", the question is "Who is Yurie?" and the search query is "Yurie AI research assistant".
 - When the user mentions something with a version/number (like "deepseek r1 0528"), include the FULL version in the question
 - For the search query, you can simplify slightly but keep key identifiers
 
@@ -1378,7 +1365,7 @@ Examples:
 
 "What is your name?" →
 [
-  {"question": "Who is Yurie?", "searchQuery": "Yurie AI search assistant"}
+  {"question": "Who is Yurie?", "searchQuery": "Yurie AI research intelligence"}
 ]
 
 Return ONLY a JSON array of {question, searchQuery} objects.` },
@@ -1486,7 +1473,7 @@ Return one alternative search query per unanswered question, one per line.` },
       const messages: ResponseMessage[] = [
         { role: 'system', content: `${this.getCurrentDateContext()}
 
-Extract ONE key finding from this content that's SPECIFICALLY relevant to the search query.
+You're Yurie. Extract ONE key finding from this content that's SPECIFICALLY relevant to the search query.
 
 CRITICAL: Only summarize information that directly relates to the search query.
 - If searching for "Samsung phones", only mention Samsung phone information
@@ -1563,8 +1550,8 @@ Instructions:
 `;
     }
     
-    // Use the Research Intelligence Protocol prompt system
-    const systemPrompt = buildResearchPrompt(
+    // Use the unified Yurie prompt system (human-like researcher personality)
+    const systemPrompt = buildNormalResearchPrompt(
       this.getCurrentDateContext(),
       domain,
       researchContext
@@ -1610,31 +1597,12 @@ ${sourcesText}` }
       const messages: ResponseMessage[] = [
         { role: 'system', content: `${this.getCurrentDateContext()}
 
-You are Yurie, a researcher anticipating the next logical steps in this investigation.
+${YURIE_FOLLOWUP_PROMPT}
 
-**Guidelines:**
-1. **Relevance**: Questions must directly follow from the previous answer.
-2. **Depth**: Focus on "how", "why", and "what if" rather than simple facts.
-3. **Safety**: Do not generate questions that lead to harmful or policy-violating topics.
-4. **Natural Tone**: Phrase questions as a curious human researcher would.
-
-Instructions:
-- Generate exactly 3 follow-up questions
-- Each question should explore a different aspect or dig deeper into the topic
-- Questions should be natural and conversational
-- They should build upon the information provided in the answer
-- Make them specific and actionable
+Additional context:
 - Keep each question under 80 characters
-- Return only the questions, one per line, no numbering or bullets
 - Consider the entire conversation context when generating questions
-- Only include time-relevant questions if the original query was about current events or trends
-
-Examples of good follow-up questions:
-- "How does this compare to [alternative]?"
-- "Can you explain [technical term] in more detail?"
-- "What are the practical applications of this?"
-- "What are the main benefits and drawbacks?"
-- "How is this typically implemented?"` },
+- Only include time-relevant questions if the original query was about current events or trends` },
         { role: 'user', content: `Original query: "${originalQuery}"\n\nAnswer summary: ${answer.length > 1000 ? answer.slice(0, 1000) + '...' : answer}${contextPrompt}` }
       ];
       

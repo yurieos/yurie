@@ -299,13 +299,13 @@ export const UI_CONFIG = {
 // GPT-5.2 with Responses API - https://platform.openai.com/docs/guides/latest-model
 export const MODEL_CONFIG = {
   // GPT-5.2 is best for complex reasoning, broad world knowledge, and agentic tasks
-  FAST_MODEL: "gpt-5-nano-2025-08-07",
-  QUALITY_MODEL: "gpt-5-nano-2025-08-07",
+  FAST_MODEL: "gpt-5-mini-2025-08-07",
+  QUALITY_MODEL: "gpt-5-mini-2025-08-07",
   
   // Reasoning effort: controls how many reasoning tokens the model generates
   // 'none' = minimal reasoning, lowest latency (default for GPT-5.2)
   // 'low' | 'medium' | 'high' | 'xhigh' for more thorough reasoning
-  REASONING_EFFORT: "minimal" as const,
+  REASONING_EFFORT: "low" as const,
   
   // Verbosity: controls output token generation
   // 'low' = concise (SQL, simple answers)

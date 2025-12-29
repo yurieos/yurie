@@ -33,6 +33,7 @@ export interface Conversation {
   createdAt: number
   updatedAt: number
   messageCount: number
+  mode?: 'default' | 'visual'
 }
 
 // Save or update a conversation
@@ -40,7 +41,8 @@ export async function saveConversation(
   userId: string,
   conversationId: string,
   messages: ChatMessage[],
-  title?: string
+  title?: string,
+  mode?: 'default' | 'visual'
 ): Promise<boolean> {
   const redis = getRedis()
   if (!redis) {
@@ -60,6 +62,7 @@ export async function saveConversation(
       createdAt: messages[0]?.timestamp || Date.now(),
       updatedAt: Date.now(),
       messageCount: messages.length,
+      mode: mode || 'default',
     }
 
     // Store in sorted set for ordering by update time

@@ -1,7 +1,5 @@
-import Image from 'next/image';
 import { Chat } from './chat';
-import { ModeToggle } from '@/components/mode-toggle';
-import { AuthHeader } from '@/components/auth-header';
+import { MainHeader } from '@/components/main-header';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { ConversationSidebar } from '@/components/conversation-sidebar';
 
@@ -31,45 +29,7 @@ export default async function Home() {
       
       <SidebarInset className="transition-[margin] duration-300">
         {/* Header with logo */}
-        <header className="h-14 shrink-0 px-4 flex items-center">
-          <div className="flex-1 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AuthHeader userId={userId} position="left" />
-              {userId && <div className="h-5 w-px bg-border" />}
-              <a
-                href="/"
-                className="flex items-center gap-1.5"
-              >
-                {/* Logo - dark version for light mode, light version for dark mode */}
-                <Image
-                  src="/yuriedark.png"
-                  alt="Yurie logo"
-                  width={28}
-                  height={28}
-                  className="block dark:hidden"
-                  priority
-                />
-                <Image
-                  src="/yurielight.png"
-                  alt="Yurie logo"
-                  width={28}
-                  height={28}
-                  className="hidden dark:block"
-                  priority
-                />
-                <span className="text-lg font-semibold tracking-tight text-foreground">
-                  <span className="text-primary">
-                    Yurie
-                  </span>
-                </span>
-              </a>
-            </div>
-            <div className="flex items-center gap-3">
-              <ModeToggle />
-              <AuthHeader userId={userId} position="right" />
-            </div>
-          </div>
-        </header>
+        <MainHeader userId={userId} />
 
         {/* Main content wrapper */}
         <div className="flex-1 flex flex-col overflow-hidden">

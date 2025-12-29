@@ -122,9 +122,9 @@ export function SearchProvider({ children, userId, initialApiKey }: SearchProvid
 
   // Submit a query
   const submitQuery = useCallback(async (query: string) => {
-    const userMsgId = Date.now().toString();
-    const assistantMsgId = (Date.now() + 1).toString();
-    const resultMsgId = (Date.now() + 2).toString();
+    const userMsgId = uuidv4();
+    const assistantMsgId = uuidv4();
+    const resultMsgId = uuidv4();
     
     const eventsRef: SearchEvent[] = [];
     
@@ -241,7 +241,7 @@ export function SearchProvider({ children, userId, initialApiKey }: SearchProvid
             setMessages(prev => [
               ...prev.filter(msg => msg.id !== assistantMsgId && msg.id !== resultMsgId),
               {
-                id: Date.now().toString(),
+                id: uuidv4(),
                 role: 'assistant',
                 type: 'error',
                 content: error,
@@ -257,7 +257,7 @@ export function SearchProvider({ children, userId, initialApiKey }: SearchProvid
       setMessages(prev => [
         ...prev.filter(msg => msg.id !== assistantMsgId && msg.id !== resultMsgId),
         {
-          id: Date.now().toString(),
+          id: uuidv4(),
           role: 'assistant',
           type: 'error',
           content: error instanceof Error ? error.message : 'An error occurred during search',
