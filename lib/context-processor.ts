@@ -1,12 +1,35 @@
-import { Source } from './types';
+import { Source, EnhancedSource, ResearchDomain } from './types';
 import { MODEL_CONFIG } from './config';
 import { generateResponse } from './openai-responses';
+import { 
+  enrichSources, 
+  buildResearchContext,
+  detectQualityFlags 
+} from './evidence-classifier';
 
 interface ProcessedSource extends Source {
   relevanceScore: number;
   extractedSections: string[];
   keywords: string[];
   summarized?: boolean;
+}
+
+// Extended processed source with research metadata
+// Using Omit to avoid property conflicts between ProcessedSource and EnhancedSource
+interface EnhancedProcessedSource extends ProcessedSource {
+  // Research metadata from EnhancedSource (optional since they're enriched later)
+  evidenceClass?: EnhancedSource['evidenceClass'];
+  evidenceWeight?: EnhancedSource['evidenceWeight'];
+  authorityScore?: EnhancedSource['authorityScore'];
+  publicationDate?: EnhancedSource['publicationDate'];
+  peerReviewed?: EnhancedSource['peerReviewed'];
+  openAccess?: EnhancedSource['openAccess'];
+  conflictsOfInterest?: EnhancedSource['conflictsOfInterest'];
+  doi?: EnhancedSource['doi'];
+  retractionStatus?: EnhancedSource['retractionStatus'];
+  consensusLevel?: EnhancedSource['consensusLevel'];
+  corroboratedBy?: EnhancedSource['corroboratedBy'];
+  contradictedBy?: EnhancedSource['contradictedBy'];
 }
 
 export class ContextProcessor {
@@ -422,5 +445,164 @@ Provide a focused summary that would help answer the user's question:`,
     
     // Combined score
     return (score * 0.6) + (keywordScore * 0.4);
+  }
+
+  // ==========================================================================
+  // RESEARCH INTELLIGENCE PROTOCOL METHODS
+  // ==========================================================================
+
+  /**
+   * Enrich sources with research metadata (evidence classification, authority scores, etc.)
+   * This is the main entry point for the Research Intelligence Protocol
+   */
+  enrichSourcesForResearch(sources: Source[]): EnhancedSource[] {
+    return enrichSources(sources);
+  }
+
+  /**
+   * Build complete research context from sources and domain
+   */
+  buildResearchContext(
+    sources: Source[],
+    domain: ResearchDomain,
+    query: string
+  ) {
+    const enrichedSources = this.enrichSourcesForResearch(sources);
+    return {
+      sources: enrichedSources,
+      context: buildResearchContext(enrichedSources, domain, query),
+    };
+  }
+
+  /**
+   * Process sources with full research metadata enrichment
+   * Combines traditional processing with Research Intelligence Protocol
+   */
+  async processSourcesForResearch(
+    query: string,
+    sources: Source[],
+    searchQueries: string[],
+    domain: ResearchDomain,
+    onProgress?: (message: string, sourceUrl?: string) => void
+  ): Promise<{
+    processedSources: EnhancedProcessedSource[];
+    researchContext: ReturnType<typeof buildResearchContext>;
+  }> {
+    // First, enrich sources with research metadata
+    const enrichedSources = this.enrichSourcesForResearch(sources);
+    
+    // Build research context
+    const researchContext = buildResearchContext(enrichedSources, domain, query);
+    
+    // Now process for content summarization
+    const summaryLength = this.calculateSummaryLength(sources.length);
+    
+    const processedSources = await Promise.all(
+      enrichedSources.map(async (source) => {
+        const processed = await this.summarizeSource(
+          source, 
+          query, 
+          searchQueries, 
+          summaryLength, 
+          onProgress
+        );
+        
+        // Merge enriched metadata with processed source
+        return {
+          ...processed,
+          evidenceClass: source.evidenceClass,
+          evidenceWeight: source.evidenceWeight,
+          authorityScore: source.authorityScore,
+          publicationDate: source.publicationDate,
+          peerReviewed: source.peerReviewed,
+          openAccess: source.openAccess,
+          conflictsOfInterest: source.conflictsOfInterest,
+          doi: source.doi,
+          retractionStatus: source.retractionStatus,
+          consensusLevel: source.consensusLevel,
+          corroboratedBy: source.corroboratedBy,
+          contradictedBy: source.contradictedBy,
+        } as EnhancedProcessedSource;
+      })
+    );
+
+    // Filter and sort by combined relevance and authority
+    const validSources = processedSources
+      .filter(s => s.relevanceScore > 0)
+      .sort((a, b) => {
+        // Combine relevance score with authority score
+        const scoreA = (a.relevanceScore * 0.6) + ((a.authorityScore || 0.5) * 0.4);
+        const scoreB = (b.relevanceScore * 0.6) + ((b.authorityScore || 0.5) * 0.4);
+        return scoreB - scoreA;
+      });
+
+    return {
+      processedSources: validSources,
+      researchContext,
+    };
+  }
+
+  /**
+   * Generate a source quality assessment table in markdown
+   */
+  generateSourceQualityTable(sources: EnhancedSource[]): string {
+    const EVIDENCE_SYMBOLS: Record<string, string> = {
+      primary: '🟢',
+      meta: '🔵',
+      peer: '🟡',
+      expert: '🟠',
+      gray: '⚪',
+      anecdotal: '🔴',
+    };
+
+    const rows = sources.map((source, index) => {
+      const symbol = EVIDENCE_SYMBOLS[source.evidenceClass] || '⚪';
+      const authority = source.authorityScore 
+        ? '█'.repeat(Math.round(source.authorityScore * 5)) + '░'.repeat(5 - Math.round(source.authorityScore * 5))
+        : '░░░░░';
+      const year = source.publicationDate || 'N/A';
+      const openAccess = source.openAccess ? 'Yes' : 'No';
+      const conflicts = source.conflictsOfInterest?.length 
+        ? source.conflictsOfInterest[0].slice(0, 30) + '...'
+        : 'None';
+      
+      // Truncate title to 40 chars
+      const title = source.title.length > 40 
+        ? source.title.slice(0, 37) + '...'
+        : source.title;
+      
+      return `| ${index + 1} | ${title} | ${symbol} | ${authority} | ${year} | ${openAccess} | ${conflicts} |`;
+    });
+
+    return `| # | Source | Type | Auth. | Date | Open | Conflicts |
+|---|--------|------|-------|------|------|-----------|
+${rows.join('\n')}`;
+  }
+
+  /**
+   * Generate research integrity statement
+   */
+  generateIntegrityStatement(
+    sources: EnhancedSource[],
+    confidence: number,
+    currentDate: string
+  ): string {
+    const primaryCount = sources.filter(s => s.evidenceClass === 'primary').length;
+    const peerCount = sources.filter(s => s.evidenceClass === 'peer' || s.evidenceClass === 'meta').length;
+    const grayCount = sources.filter(s => s.evidenceClass === 'gray' || s.evidenceClass === 'anecdotal').length;
+    const hasConflicts = sources.some(s => s.conflictsOfInterest && s.conflictsOfInterest.length > 0);
+    
+    let confidenceLevel = 'Low';
+    if (confidence >= 80) confidenceLevel = 'Very High';
+    else if (confidence >= 60) confidenceLevel = 'High';
+    else if (confidence >= 40) confidenceLevel = 'Medium';
+
+    return `---
+**Research Integrity Note**
+- Sources analyzed: ${sources.length}
+- Primary: ${primaryCount} | Peer-reviewed: ${peerCount} | Gray literature: ${grayCount}
+- Potential conflicts identified: ${hasConflicts ? 'Yes' : 'No'}
+- Overall confidence: ${confidenceLevel} (${confidence}%)
+- Analysis date: ${currentDate}`;
   }
 }

@@ -1,5 +1,7 @@
 import { MODEL_CONFIG } from "../config";
 import { ResponsesAPIClient, ResponseMessage } from "../openai-responses";
+import { ResearchDomain } from "../types";
+import { detectResearchDomain } from "../research-prompt";
 
 // Extended provider types - includes all free APIs
 export type SearchProvider = 
@@ -49,13 +51,27 @@ export type SearchProvider =
  */
 export type FirecrawlOperation = 'search' | 'scrape' | 'crawl' | 'map';
 
+/**
+ * Extended query classification with research domain detection
+ */
 export interface QueryClassification {
   provider: SearchProvider;
   confidence: number;
   reason: string;
-  suggestedMode?: 'search' | 'similar' | 'research' | 'academic' | 'technical' | 'medical' | 'nature';
+  suggestedMode?: 'search' | 'similar' | 'research' | 'academic' | 'technical' | 'medical' | 'nature' | 'legal' | 'economic' | 'cultural';
   firecrawlOperation?: FirecrawlOperation;
+  // NEW: Research Intelligence Protocol fields
+  researchDomain: ResearchDomain;
+  requiresQuantitativeData?: boolean;
+  temporalSensitivity?: 'high' | 'medium' | 'low';
 }
+
+/**
+ * Partial classification returned by quick classify (before augmentation)
+ */
+type PartialClassification = Omit<QueryClassification, 'researchDomain' | 'requiresQuantitativeData' | 'temporalSensitivity'> & {
+  researchDomain?: ResearchDomain;
+};
 
 const CLASSIFICATION_PROMPT = `You are a search query router. Classify this query to determine the best search provider.
 
@@ -350,6 +366,36 @@ export class SearchRouter {
   }
 
   /**
+   * Augment classification with research domain and related fields
+   */
+  private augmentWithResearchDomain(
+    classification: PartialClassification,
+    query: string
+  ): QueryClassification {
+    const researchDomain = classification.researchDomain || 
+      detectResearchDomain(classification.provider, classification.suggestedMode);
+    
+    // Determine temporal sensitivity based on domain
+    let temporalSensitivity: 'high' | 'medium' | 'low' = 'low';
+    if (['medical_drug', 'economic'].includes(researchDomain)) {
+      temporalSensitivity = 'high';
+    } else if (['scientific_discovery', 'legal'].includes(researchDomain)) {
+      temporalSensitivity = 'medium';
+    }
+    
+    // Determine if quantitative data is needed
+    const requiresQuantitativeData = /how many|percentage|rate|statistics|data|numbers|figures|count|measure/i.test(query);
+    
+    return {
+      ...classification,
+      researchDomain,
+      temporalSensitivity,
+      requiresQuantitativeData,
+      suggestedMode: classification.suggestedMode,
+    } as QueryClassification;
+  }
+
+  /**
    * Classify a query to determine the best search provider
    */
   async classifyQuery(query: string): Promise<QueryClassification> {
@@ -362,8 +408,9 @@ export class SearchRouter {
     // Quick heuristic checks before LLM call
     const quickClassification = this.quickClassify(query);
     if (quickClassification.confidence >= 0.9) {
-      this.cache.set(cacheKey, quickClassification);
-      return quickClassification;
+      const augmented = this.augmentWithResearchDomain(quickClassification, query);
+      this.cache.set(cacheKey, augmented);
+      return augmented;
     }
 
     try {
@@ -379,7 +426,16 @@ export class SearchRouter {
       // Strip markdown code blocks if present
       content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
       
-      const classification = JSON.parse(content) as QueryClassification;
+      const parsed = JSON.parse(content) as Partial<QueryClassification>;
+      
+      // Ensure all required fields are present and augment with research domain
+      const classification = this.augmentWithResearchDomain({
+        provider: parsed.provider || 'wikipedia',
+        confidence: parsed.confidence || 0.5,
+        reason: parsed.reason || 'LLM classification',
+        suggestedMode: parsed.suggestedMode,
+        firecrawlOperation: parsed.firecrawlOperation,
+      }, query);
       
       // Cache the result
       this.cache.set(cacheKey, classification);
@@ -398,14 +454,15 @@ export class SearchRouter {
             suggestedMode: 'search' as const,
           };
       
-      return fallback;
+      return this.augmentWithResearchDomain(fallback, query);
     }
   }
 
   /**
    * Quick heuristic-based classification to avoid LLM calls for obvious queries
+   * Returns a partial classification that will be augmented with research domain
    */
-  private quickClassify(query: string): QueryClassification {
+  private quickClassify(query: string): PartialClassification {
     const q = query.toLowerCase();
 
     // ==========================================================================

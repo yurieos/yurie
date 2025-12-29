@@ -8,8 +8,10 @@ import {
   Plus, 
   Trash2, 
   LogOut,
-  Settings
+  Settings,
+  Eye
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   Sidebar,
   SidebarContent,
@@ -222,7 +224,7 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
       
       <SidebarContent className="px-1 overflow-y-auto">
         <SidebarGroup className="pb-0 pt-3">
-          <SidebarGroupContent className="py-0">
+          <SidebarGroupContent className="py-0 space-y-1">
             <button
               onClick={handleNewChat}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg interactive
@@ -231,6 +233,17 @@ export function ConversationSidebar({ userId }: ConversationSidebarProps) {
               <Plus className="h-4 w-4" strokeWidth={2.5} />
               <span className="text-sm font-medium">New Chat</span>
             </button>
+            <Link
+              href="/visual-research"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg interactive
+                text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              <Eye className="h-4 w-4" />
+              <span className="text-sm">Visual Mode</span>
+              <span className="ml-auto text-[9px] uppercase tracking-wider font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                Beta
+              </span>
+            </Link>
           </SidebarGroupContent>
         </SidebarGroup>
 

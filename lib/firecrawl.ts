@@ -822,8 +822,14 @@ export class FirecrawlClient {
 
   /**
    * Search the web and get content from results
+   * @param query - Search query string
+   * @param options - Search options including limit, scrapeOptions, and includeScreenshots
    */
-  async search(query: string, options?: { limit?: number; scrapeOptions?: any }) {
+  async search(query: string, options?: { 
+    limit?: number; 
+    scrapeOptions?: any;
+    includeScreenshots?: boolean;  // Enable screenshot capture for visual research mode
+  }) {
     try {
       // Search with scrape - this gets us content immediately!
       const searchParams: any = {
@@ -832,8 +838,13 @@ export class FirecrawlClient {
       
       // Add scrapeOptions to get content with search results
       if (options?.scrapeOptions !== false) {
+        // Determine formats based on whether screenshots are requested
+        const formats = options?.includeScreenshots 
+          ? ['markdown', 'screenshot@fullPage']
+          : ['markdown'];
+        
         searchParams.scrapeOptions = {
-          formats: ['markdown'],
+          formats,
           ...options?.scrapeOptions
         };
       }

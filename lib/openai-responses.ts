@@ -6,12 +6,47 @@
  * - Reasoning effort control (none, low, medium, high, xhigh)
  * - Verbosity control (low, medium, high)
  * - Streaming support
+ * - Automatic retry with exponential backoff
+ * - Circuit breaker for fault tolerance
  * 
  * @see https://platform.openai.com/docs/guides/latest-model
  */
 
+import { withRetry, type RetryOptions } from './utils/retry';
+import { CircuitBreaker, type CircuitBreakerOptions } from './utils/circuit-breaker';
+
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type Verbosity = 'low' | 'medium' | 'high';
+
+// Default retry options for OpenAI API calls
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 30000,
+  jitter: 0.2,
+  shouldRetry: (error: unknown) => {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      // Retry on rate limits, server errors, and timeouts
+      if (message.includes('429') || message.includes('rate limit')) return true;
+      if (message.includes('500') || message.includes('502') || 
+          message.includes('503') || message.includes('504')) return true;
+      if (message.includes('timeout') || message.includes('timed out')) return true;
+      if (message.includes('econnreset') || message.includes('network')) return true;
+    }
+    return false;
+  },
+};
+
+// Default circuit breaker options
+const DEFAULT_CIRCUIT_BREAKER_OPTIONS: CircuitBreakerOptions = {
+  failureThreshold: 5,
+  resetTimeout: 60000, // 1 minute
+  successThreshold: 2,
+};
+
+// Global circuit breaker for OpenAI API
+const openAICircuitBreaker = new CircuitBreaker(DEFAULT_CIRCUIT_BREAKER_OPTIONS);
 
 export interface ResponsesAPIOptions {
   model: string;
@@ -73,47 +108,60 @@ export class ResponsesAPIClient {
 
   /**
    * Generate a response using the Responses API
+   * Includes automatic retry with exponential backoff and circuit breaker protection
    */
   async generate(options: GenerateOptions): Promise<ResponseResult> {
     const body = this.buildRequestBody(options);
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    // Wrap the fetch call with circuit breaker and retry
+    return openAICircuitBreaker.execute(() =>
+      withRetry(async () => {
+        const response = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Responses API error: ${response.status} - ${error}`);
-    }
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Responses API error: ${response.status} - ${error}`);
+        }
 
-    const data = await response.json();
-    return this.parseResponse(data);
+        const data = await response.json();
+        return this.parseResponse(data);
+      }, DEFAULT_RETRY_OPTIONS)
+    );
   }
 
   /**
    * Generate a streaming response using the Responses API
+   * Includes circuit breaker protection for the initial connection
    */
   async *generateStream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
     const body = this.buildRequestBody({ ...options, stream: true });
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    // Use circuit breaker for the initial connection
+    // Note: Retry is not used for streaming as partial streams are not easily retryable
+    const response = await openAICircuitBreaker.execute(async () => {
+      const res = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Responses API error: ${response.status} - ${error}`);
-    }
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(`Responses API error: ${res.status} - ${error}`);
+      }
+
+      return res;
+    });
 
     if (!response.body) {
       throw new Error('No response body for streaming');
@@ -372,4 +420,20 @@ export function createResponsesClient(options: ResponsesAPIOptions): ResponsesAP
   return new ResponsesAPIClient(options);
 }
 
+/**
+ * Get the current health status of the OpenAI API connection
+ */
+export function getOpenAIHealthStatus() {
+  return {
+    circuitBreaker: openAICircuitBreaker.getStats(),
+    isHealthy: openAICircuitBreaker.isAllowed(),
+  };
+}
+
+/**
+ * Reset the OpenAI circuit breaker (useful after fixing issues)
+ */
+export function resetOpenAICircuitBreaker(): void {
+  openAICircuitBreaker.reset();
+}
 

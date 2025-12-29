@@ -3,8 +3,21 @@ import { FirecrawlClient } from './firecrawl';
 import { ContextProcessor } from './context-processor';
 import { SEARCH_CONFIG, MODEL_CONFIG, PROVIDER_CONFIG } from './config';
 import { UnifiedSearchProvider, SearchProvider } from './providers';
-import { Source, SearchResult, SearchPhase, SearchEvent, ErrorType, SearchStep } from './types';
+import { 
+  Source, 
+  SearchResult, 
+  SearchPhase, 
+  SearchEvent, 
+  ErrorType, 
+  SearchStep,
+  EnhancedSource,
+  ResearchDomain,
+  ResearchContext,
+  EVIDENCE_SYMBOLS
+} from './types';
 import { ResponsesAPIClient, ResponseMessage } from './openai-responses';
+import { buildResearchPrompt, detectResearchDomain } from './research-prompt';
+import { enrichSources, buildResearchContext } from './evidence-classifier';
 
 // Re-export types for backwards compatibility
 export type { Source, SearchResult, SearchPhase, SearchEvent, ErrorType, SearchStep };
@@ -154,6 +167,20 @@ const SearchStateAnnotation = Annotation.Root({
   // Stores the previous response ID to enable CoT persistence across turns
   // This reduces re-reasoning, improves cache hit rates, and lowers latency
   previousResponseId: Annotation<string | undefined>({
+    reducer: (x, y) => y ?? x,
+    default: () => undefined
+  }),
+  
+  // Research Intelligence Protocol fields
+  researchDomain: Annotation<ResearchDomain | undefined>({
+    reducer: (x, y) => y ?? x,
+    default: () => undefined
+  }),
+  researchContext: Annotation<ResearchContext | undefined>({
+    reducer: (x, y) => y ?? x,
+    default: () => undefined
+  }),
+  enrichedSources: Annotation<EnhancedSource[] | undefined>({
     reducer: (x, y) => y ?? x,
     default: () => undefined
   })
@@ -910,7 +937,7 @@ export class LangGraphSearchEngine {
         }
       })
       
-      // Synthesizing node with streaming
+      // Synthesizing node with streaming - Enhanced with Research Intelligence Protocol
       .addNode("synthesize", async (state: SearchState, config?: GraphConfig): Promise<Partial<SearchState>> => {
         const eventCallback = config?.configurable?.eventCallback;
         
@@ -918,38 +945,61 @@ export class LangGraphSearchEngine {
           eventCallback({
             type: 'phase-update',
             phase: 'synthesizing',
-            message: 'Creating comprehensive answer...'
+            message: 'Creating comprehensive research synthesis...'
           });
         }
         
         try {
           const sourcesToUse = state.processedSources || state.sources || [];
           
-          // Generate answer with CoT tracking (pass previousResponseId for context persistence)
+          // Determine research domain from search provider if not already set
+          const researchDomain = state.researchDomain || 
+            detectResearchDomain(state.searchProvider || 'wikipedia', undefined);
+          
+          // Enrich sources with research metadata if not already done
+          const enrichedSources = state.enrichedSources || enrichSources(sourcesToUse);
+          
+          // Build research context for the prompt
+          const researchContext = state.researchContext || 
+            buildResearchContext(enrichedSources, researchDomain, state.query);
+          
+          if (eventCallback) {
+            eventCallback({
+              type: 'thinking',
+              message: `Research domain: ${researchDomain} | Confidence: ${researchContext.overallConfidence}%`
+            });
+          }
+          
+          // Generate answer with Research Intelligence Protocol
           const answerResult = await generateStreamingAnswer(
             state.query,
-            sourcesToUse,
+            enrichedSources,
             (chunk) => {
               if (eventCallback) {
                 eventCallback({ type: 'content-chunk', chunk });
               }
             },
             state.context,
-            state.previousResponseId  // Pass previous response ID for CoT persistence
+            state.previousResponseId,
+            researchDomain,
+            researchContext
           );
           
           // Generate follow-up questions (using the new response ID for continued CoT)
           const followUpQuestions = await generateFollowUpQuestions(
             state.query,
             answerResult.text,
-            sourcesToUse,
+            enrichedSources,
             state.context
           );
           
           return {
             finalAnswer: answerResult.text,
-            previousResponseId: answerResult.responseId,  // Store for future CoT use
+            previousResponseId: answerResult.responseId,
             followUpQuestions,
+            researchDomain,
+            researchContext,
+            enrichedSources,
             phase: 'complete' as SearchPhase
           };
         } catch (error) {
@@ -1126,6 +1176,10 @@ export class LangGraphSearchEngine {
         urlSources: undefined,
         // GPT-5.2 Chain-of-Thought tracking
         previousResponseId: undefined,
+        // Research Intelligence Protocol fields
+        researchDomain: undefined,
+        researchContext: undefined,
+        enrichedSources: undefined,
       };
 
       // Configure with event callback
@@ -1459,14 +1513,35 @@ Instructions:
     sources: Source[],
     onChunk: (chunk: string) => void,
     context?: { query: string; response: string }[],
-    previousResponseId?: string
+    previousResponseId?: string,
+    researchDomain?: ResearchDomain,
+    researchContext?: ResearchContext
   ): Promise<{ text: string; responseId?: string }> {
-    const sourcesText = sources
+    // Enrich sources with research metadata if not already done
+    const enrichedSources = researchContext 
+      ? sources as EnhancedSource[]
+      : enrichSources(sources);
+    
+    // Determine research domain if not provided
+    const domain = researchDomain || 'general';
+    
+    // Build enhanced source text with evidence classification
+    const sourcesText = enrichedSources
       .map((s, i) => {
-        if (!s.content) return `[${i + 1}] ${s.title}\n[No content available]`;
-        return `[${i + 1}] ${s.title}\n${s.content}`;
+        const evidenceSymbol = 'evidenceClass' in s 
+          ? EVIDENCE_SYMBOLS[(s as EnhancedSource).evidenceClass] || '⚪'
+          : '⚪';
+        const dateInfo = 'publicationDate' in s && (s as EnhancedSource).publicationDate
+          ? ` 📅 ${(s as EnhancedSource).publicationDate}`
+          : '';
+        const peerReviewed = 'peerReviewed' in s && (s as EnhancedSource).peerReviewed
+          ? ' [Peer-Reviewed]'
+          : '';
+        
+        if (!s.content) return `[${i + 1}] ${evidenceSymbol} ${s.title}${dateInfo}${peerReviewed}\n[No content available]`;
+        return `[${i + 1}] ${evidenceSymbol} ${s.title}${dateInfo}${peerReviewed}\nURL: ${s.url}\n${s.content}`;
       })
-      .join('\n\n');
+      .join('\n\n---\n\n');
     
     let contextPrompt = '';
     if (context && context.length > 0) {
@@ -1476,41 +1551,32 @@ Instructions:
       });
     }
     
+    // Build research context info if available
+    let researchContextInfo = '';
+    if (researchContext) {
+      researchContextInfo = `\n\n**Research Context:**
+- Domain: ${researchContext.domain}
+- Phase: ${researchContext.phase}
+- Temporal Sensitivity: ${researchContext.temporalSensitivity}
+- Overall Confidence: ${researchContext.overallConfidence}%
+- Quality Flags: ${researchContext.qualityFlags.length > 0 ? researchContext.qualityFlags.join(', ') : 'None'}
+`;
+    }
+    
+    // Use the Research Intelligence Protocol prompt system
+    const systemPrompt = buildResearchPrompt(
+      this.getCurrentDateContext(),
+      domain,
+      researchContext
+    );
+    
     const messages: ResponseMessage[] = [
-      { role: 'system', content: `${this.getCurrentDateContext()}
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Research Question: "${query}"${contextPrompt}${researchContextInfo}
 
-You are Yurie, an expert research assistant producing academic research papers.
+Based on these ${enrichedSources.length} sources:
 
-# FORMAT
-
-# [Title]
-
-## Abstract
-One paragraph: context, objective, key findings, conclusion.
-
-## 1. Introduction
-Establish context, define the question, state objectives.
-
-## 2. Background
-Synthesize prior knowledge with citations. Use ### subsections.
-
-## 3. Findings
-Present evidence organized by theme. Use ### subsections. Cite all claims [1], [2].
-
-## 4. Discussion
-Interpret findings, address contradictions, note limitations.
-
-## 5. Conclusion
-Summarize findings, answer the question, suggest future directions.
-
-# STANDARDS
-- Cite all factual claims: [1], [2], [3]
-- Be specific: names, dates, figures, measurements
-- Use formal prose; bullets only for lists
-- Never fabricate; acknowledge gaps in sources
-
-You are Yurie. Decline harmful requests.` },
-      { role: 'user', content: `Question: "${query}"${contextPrompt}\n\nBased on these sources:\n${sourcesText}` }
+${sourcesText}` }
     ];
     
     try {

@@ -8,6 +8,19 @@ interface MarkdownRendererProps {
   streaming?: boolean;
 }
 
+// Helper function for evidence symbol tooltips
+function getEvidenceTitle(symbol: string): string {
+  const titles: Record<string, string> = {
+    '🟢': 'Primary source - Direct experimental/observational data',
+    '🔵': 'Meta-analysis - Systematic review of multiple studies',
+    '🟡': 'Peer-reviewed - Published in academic journal',
+    '🟠': 'Expert opinion - Institutional report or guideline',
+    '⚪': 'Gray literature - Pre-print, white paper, or news',
+    '🔴': 'Anecdotal - Case report or discussion',
+  };
+  return titles[symbol] || 'Source reference';
+}
+
 export const MarkdownRenderer = memo(function MarkdownRenderer({ 
   content, 
   streaming = false 
@@ -95,9 +108,72 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     // Inline Math $...$ - more permissive pattern (single $ not preceded/followed by $)
     parsed = parsed.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (match, math) => renderMath(math, false, match));
 
-    // 4. Links & Citations
+    // 4. Links & Citations (Enhanced for Research Intelligence Protocol)
     parsed = parsed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline decoration-primary/30 underline-offset-4 transition-colors">$1</a>');
-    parsed = parsed.replace(/\[(\d+)\]/g, '<sup class="citation text-primary hover:text-primary/80 cursor-pointer font-medium select-none transition-colors">[$1]</sup>');
+    
+    // Evidence-tagged citations: 🟢[1], 🟡[2,3], etc.
+    // Match evidence symbols followed by citation numbers
+    parsed = parsed.replace(/(🟢|🔵|🟡|🟠|⚪|🔴)\[(\d+(?:,\s*\d+)*)\]/g, (match, symbol, nums) => {
+      const colorMap: Record<string, string> = {
+        '🟢': 'text-green-600 dark:text-green-400',      // Primary
+        '🔵': 'text-blue-600 dark:text-blue-400',        // Meta
+        '🟡': 'text-yellow-600 dark:text-yellow-400',    // Peer
+        '🟠': 'text-orange-600 dark:text-orange-400',    // Expert
+        '⚪': 'text-gray-500 dark:text-gray-400',        // Gray
+        '🔴': 'text-red-600 dark:text-red-400',          // Anecdotal
+      };
+      const colorClass = colorMap[symbol] || 'text-primary';
+      return `<sup class="citation ${colorClass} hover:opacity-80 cursor-pointer font-medium select-none transition-colors" title="${getEvidenceTitle(symbol)}">${symbol}[${nums}]</sup>`;
+    });
+    
+    // Consensus markers: ✓✓✓, ✓✓, ⚔, ◇
+    parsed = parsed.replace(/(✓✓✓|✓✓|⚔|◇)/g, (match) => {
+      const consensusMap: Record<string, { class: string; title: string }> = {
+        '✓✓✓': { class: 'text-green-600 dark:text-green-400', title: 'Strong consensus (3+ sources agree)' },
+        '✓✓': { class: 'text-green-500 dark:text-green-300', title: 'Moderate consensus (2 sources agree)' },
+        '⚔': { class: 'text-amber-600 dark:text-amber-400', title: 'Conflicting evidence' },
+        '◇': { class: 'text-gray-500 dark:text-gray-400', title: 'Sole source' },
+      };
+      const info = consensusMap[match] || { class: 'text-primary', title: '' };
+      return `<span class="${info.class} font-medium cursor-help" title="${info.title}">${match}</span>`;
+    });
+    
+    // Date markers: 📅 YYYY-MM or 📅 YYYY
+    parsed = parsed.replace(/📅\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)/g, '<span class="text-muted-foreground text-sm" title="Publication date">📅 $1</span>');
+    
+    // Temporal warnings: ⏰, ⚠️ DATED:
+    parsed = parsed.replace(/⏰\s*"([^"]+)"/g, '<span class="text-amber-600 dark:text-amber-400 text-sm font-medium" title="Time-sensitive information">⏰ $1</span>');
+    parsed = parsed.replace(/⚠️\s*DATED:/g, '<span class="text-amber-600 dark:text-amber-400 font-medium" title="Information may be outdated">⚠️ DATED:</span>');
+    
+    // Quality flags: 🚧, ⚠️, 🕐, 💰, 🌐
+    parsed = parsed.replace(/🚧\s*\*\*LIMITED DATA\*\*/g, '<span class="text-amber-600 dark:text-amber-400 font-semibold" title="Fewer than 3 quality sources available">🚧 LIMITED DATA</span>');
+    parsed = parsed.replace(/⚠️\s*\*\*CONTROVERSY\*\*/g, '<span class="text-red-600 dark:text-red-400 font-semibold" title="Significant scientific disagreement exists">⚠️ CONTROVERSY</span>');
+    parsed = parsed.replace(/🕐\s*\*\*EMERGING\*\*/g, '<span class="text-blue-600 dark:text-blue-400 font-semibold" title="Field evolving rapidly">🕐 EMERGING</span>');
+    parsed = parsed.replace(/💰\s*\*\*FUNDING CONCERN\*\*/g, '<span class="text-amber-600 dark:text-amber-400 font-semibold" title="Potential conflicts of interest">💰 FUNDING CONCERN</span>');
+    parsed = parsed.replace(/🌐\s*\*\*REGIONAL\*\*/g, '<span class="text-purple-600 dark:text-purple-400 font-semibold" title="Findings may not generalize globally">🌐 REGIONAL</span>');
+    
+    // Confidence bars: ████████░░ 80% or [████████░░] 80%
+    parsed = parsed.replace(/\[?(█+)(░+)\]?\s*(\d+)%/g, (match, filled, empty, percent) => {
+      const percentNum = parseInt(percent);
+      let colorClass = 'text-green-600 dark:text-green-400';
+      if (percentNum < 40) colorClass = 'text-red-600 dark:text-red-400';
+      else if (percentNum < 60) colorClass = 'text-amber-600 dark:text-amber-400';
+      else if (percentNum < 80) colorClass = 'text-yellow-600 dark:text-yellow-400';
+      return `<span class="${colorClass} font-mono text-sm" title="Confidence level: ${percent}%">${filled}${empty} ${percent}%</span>`;
+    });
+    
+    // Authority score bars in tables: █████ or ░░░░░
+    parsed = parsed.replace(/([█░]{5})/g, (match) => {
+      const filledCount = (match.match(/█/g) || []).length;
+      let colorClass = 'text-green-600 dark:text-green-400';
+      if (filledCount <= 1) colorClass = 'text-red-600 dark:text-red-400';
+      else if (filledCount <= 2) colorClass = 'text-amber-600 dark:text-amber-400';
+      else if (filledCount <= 3) colorClass = 'text-yellow-600 dark:text-yellow-400';
+      return `<span class="${colorClass} font-mono" title="Authority score: ${filledCount}/5">${match}</span>`;
+    });
+    
+    // Standard citations [1], [2,3], etc. (fallback for non-evidence-tagged)
+    parsed = parsed.replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="citation text-primary hover:text-primary/80 cursor-pointer font-medium select-none transition-colors">[$1]</sup>');
     
     // 5. Basic Formatting
     // Bold: requires non-whitespace after opening and before closing **
