@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirecrawlClient } from '@/lib/firecrawl';
+import { handleApiError, validationError, capLimit } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,30 +8,18 @@ export async function POST(request: NextRequest) {
     const { url, limit = 10, maxDepth = 2, allowBackwardLinks = false, apiKey } = body;
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+      return validationError('URL');
     }
 
     const firecrawl = new FirecrawlClient(apiKey);
     const result = await firecrawl.crawl(url, {
-      limit: Math.min(limit, 25), // Cap at 25 pages
-      maxDepth: Math.min(maxDepth, 5), // Cap at depth 5
+      limit: capLimit(limit, 25),
+      maxDepth: capLimit(maxDepth, 5),
       allowBackwardLinks,
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Crawl API error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to crawl website' 
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Crawl API');
   }
 }
-
-

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirecrawlClient } from '@/lib/firecrawl';
+import { handleApiError, validationError, capLimit } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,18 +8,13 @@ export async function POST(request: NextRequest) {
     const { query, limit = 10, scrapeOptions, apiKey } = body;
 
     if (!query) {
-      return NextResponse.json(
-        { error: 'Query is required' },
-        { status: 400 }
-      );
+      return validationError('Query');
     }
 
     const firecrawl = new FirecrawlClient(apiKey);
     const result = await firecrawl.search(query, {
-      limit: Math.min(limit, 20), // Cap at 20 results
-      scrapeOptions: scrapeOptions ?? {
-        formats: ['markdown'],
-      },
+      limit: capLimit(limit, 20),
+      scrapeOptions: scrapeOptions ?? { formats: ['markdown'] },
     });
 
     return NextResponse.json({
@@ -29,15 +25,6 @@ export async function POST(request: NextRequest) {
       metadata: result.metadata,
     });
   } catch (error) {
-    console.error('Firecrawl Search API error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to search' 
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Firecrawl Search API');
   }
 }
-
-

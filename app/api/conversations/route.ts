@@ -6,127 +6,94 @@ import {
   saveConversation, 
   deleteConversation 
 } from '@/lib/chat-history';
+import { 
+  unauthorizedError, 
+  notFoundError, 
+  validationError, 
+  handleApiError 
+} from '@/lib/api-utils';
+
+// Helper to verify user authorization
+async function verifyAuth(requestUserId: string | null) {
+  const { userId: authUserId } = await auth();
+  if (!authUserId || authUserId !== requestUserId) {
+    return { authorized: false, error: unauthorizedError() };
+  }
+  return { authorized: true, userId: authUserId };
+}
 
 // GET /api/conversations - Get list of conversations or a specific conversation
 export async function GET(request: NextRequest) {
   try {
-    const { userId: authUserId } = await auth();
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get('userId');
     const conversationId = searchParams.get('conversationId');
 
-    // Verify the user is authenticated and requesting their own data
-    if (!authUserId || authUserId !== userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const authResult = await verifyAuth(userId);
+    if (!authResult.authorized) return authResult.error;
 
     if (conversationId) {
-      // Get specific conversation
-      const messages = await getConversation(userId, conversationId);
+      const messages = await getConversation(userId!, conversationId);
       if (!messages) {
-        return NextResponse.json(
-          { error: 'Conversation not found' },
-          { status: 404 }
-        );
+        return notFoundError('Conversation');
       }
       return NextResponse.json({ messages });
-    } else {
-      // Get list of conversations
-      const conversations = await getConversationList(userId);
-      return NextResponse.json({ conversations });
     }
+
+    const conversations = await getConversationList(userId!);
+    return NextResponse.json({ conversations });
   } catch (error) {
-    console.error('Failed to get conversations:', error);
-    return NextResponse.json(
-      { error: 'Failed to get conversations' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Get conversations');
   }
 }
 
 // POST /api/conversations - Save a conversation
 export async function POST(request: NextRequest) {
   try {
-    const { userId: authUserId } = await auth();
     const body = await request.json();
     const { userId, conversationId, messages, title, mode } = body;
 
-    // Verify the user is authenticated and saving their own data
-    if (!authUserId || authUserId !== userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const authResult = await verifyAuth(userId);
+    if (!authResult.authorized) return authResult.error;
 
     if (!conversationId || !messages) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return validationError('conversationId and messages', 'Missing required fields');
     }
 
     const success = await saveConversation(userId, conversationId, messages, title, mode);
     
     if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to save conversation' },
-        { status: 500 }
-      );
+      return handleApiError(new Error('Save failed'), 'Save conversation');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to save conversation:', error);
-    return NextResponse.json(
-      { error: 'Failed to save conversation' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Save conversation');
   }
 }
 
 // DELETE /api/conversations - Delete a conversation
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId: authUserId } = await auth();
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get('userId');
     const conversationId = searchParams.get('conversationId');
 
-    // Verify the user is authenticated and deleting their own data
-    if (!authUserId || authUserId !== userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const authResult = await verifyAuth(userId);
+    if (!authResult.authorized) return authResult.error;
 
     if (!conversationId) {
-      return NextResponse.json(
-        { error: 'Missing conversation ID' },
-        { status: 400 }
-      );
+      return validationError('conversationId', 'Missing conversation ID');
     }
 
-    const success = await deleteConversation(userId, conversationId);
+    const success = await deleteConversation(userId!, conversationId);
     
     if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to delete conversation' },
-        { status: 500 }
-      );
+      return handleApiError(new Error('Delete failed'), 'Delete conversation');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete conversation:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete conversation' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Delete conversation');
   }
 }
-

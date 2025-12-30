@@ -12,6 +12,10 @@
  * Register for API key: https://fred.stlouisfed.org/docs/api/api_key.html
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface FREDSearchResult {
   url: string;
   title: string;
@@ -80,7 +84,7 @@ export class FREDClient {
   constructor() {
     const apiKey = process.env.FRED_API_KEY;
     if (!apiKey) {
-      console.warn('FRED_API_KEY not set - FRED provider will not work. Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html');
+      log.debug('FRED_API_KEY not set - FRED provider will not work. Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html');
     }
     this.apiKey = apiKey || '';
   }
@@ -105,7 +109,9 @@ export class FREDClient {
     }
   ): Promise<FREDSearchResponse> {
     if (!this.apiKey) {
-      throw new Error('FRED API key not configured');
+      // Return empty results to trigger fallback - don't throw
+      log.debug('FRED API key not configured, returning empty results for fallback');
+      return { results: [], total: 0 };
     }
 
     try {
@@ -149,7 +155,7 @@ export class FREDClient {
         total: data.count,
       };
     } catch (error) {
-      console.error('FRED search error:', error);
+      log.debug('FRED search error:', error);
       throw error;
     }
   }
@@ -191,7 +197,7 @@ export class FREDClient {
 
       return result;
     } catch (error) {
-      console.error('FRED get series error:', error);
+      log.debug('FRED get series error:', error);
       throw error;
     }
   }
@@ -242,7 +248,7 @@ export class FREDClient {
         value: obs.value === '.' ? null : parseFloat(obs.value),
       }));
     } catch (error) {
-      console.error('FRED get observations error:', error);
+      log.debug('FRED get observations error:', error);
       throw error;
     }
   }
@@ -289,7 +295,7 @@ export class FREDClient {
         total: data.count,
       };
     } catch (error) {
-      console.error('FRED category search error:', error);
+      log.debug('FRED category search error:', error);
       throw error;
     }
   }

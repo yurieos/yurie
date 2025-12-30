@@ -113,13 +113,6 @@ export {
   type USGSSearchResponse as USGSEarthquakeSearchResponse,
 } from './usgs-client';
 
-// Open Library - Books (20M+ books, FREE)
-export {
-  OpenLibraryClient,
-  type OpenLibrarySearchResult,
-  type OpenLibrarySearchResponse,
-} from './openlibrary-client';
-
 // iNaturalist - Species & Biodiversity (150M+ observations, FREE)
 export {
   INaturalistClient,
@@ -152,13 +145,6 @@ export {
   type WorldBankCountry,
 } from './worldbank-client';
 
-// Open-Meteo - Weather Data (FREE, no key required)
-export {
-  OpenMeteoClient,
-  type OpenMeteoSearchResult,
-  type OpenMeteoSearchResponse,
-} from './openmeteo-client';
-
 // Europeana - Cultural Heritage (50M+ items, FREE with key)
 export {
   EuropeanaClient,
@@ -174,15 +160,8 @@ export {
 } from './pubchem-client';
 
 // =============================================================================
-// NEW HISTORY RESEARCH PROVIDERS (No API Key Required)
+// HISTORY RESEARCH PROVIDERS (No API Key Required)
 // =============================================================================
-
-// Metropolitan Museum of Art - Art History (470K+ objects, FREE)
-export {
-  MetMuseumClient,
-  type MetMuseumSearchResult,
-  type MetMuseumSearchResponse,
-} from './met-client';
 
 // Library of Congress - Primary Sources (170M+ items, FREE)
 export {
@@ -203,25 +182,8 @@ export {
   type InternetArchiveItem,
 } from './internet-archive-client';
 
-// Art Institute of Chicago - Art History (120K+ artworks, FREE)
-export {
-  ArticClient,
-  type ArticSearchResult,
-  type ArticSearchResponse,
-} from './artic-client';
-
-// This Day in History - Historical Events (FREE)
-export {
-  HistoryClient,
-  type ThisDayInHistoryResult,
-  type ThisDayInHistoryResponse,
-  type HistoricalEvent,
-  type HistorySearchResult,
-  type HistorySearchResponse,
-} from './history-client';
-
 // =============================================================================
-// NEW TREASURE HUNTING PROVIDERS (No API Key Required)
+// TREASURE HUNTING PROVIDERS (No API Key Required)
 // =============================================================================
 
 // Portable Antiquities Scheme - UK Archaeological Finds (1.6M+ finds, FREE)
@@ -290,12 +252,69 @@ export {
 
 export { 
   SearchRouter, 
-  getSearchRouter, 
+  getSearchRouter,
+  resetSearchRouter,
   type SearchProvider, 
   type QueryClassification,
   type FirecrawlOperation,
 } from './search-router';
 export { UnifiedSearchProvider, type UnifiedSearchResult, type UnifiedSearchOptions } from './unified-search';
+
+// =============================================================================
+// NEW: PROVIDER FACTORY & REGISTRY (Code Reduction Architecture)
+// =============================================================================
+
+export {
+  createProviderRegistry,
+  createProviderSearch,
+  defaultTransformer,
+  academicTransformer,
+  createQualityTransformer,
+  searchMultipleProviders,
+  type ProviderConfig,
+  type ProviderRegistry,
+  type ProviderSearchFn,
+  type SearchClientResult,
+  type SearchClientResponse,
+} from './provider-factory';
+
+export {
+  getProviderRegistry,
+  executeProviderSearch,
+  isProviderAvailable,
+  getAvailableProviders,
+  resetProviderRegistry,
+} from './provider-registry';
+
+export {
+  PROVIDER_DEFINITIONS,
+  getProviderDefinition,
+  getAllProviderNames,
+  getApiKeyProviders,
+  getFreeProviders,
+  providerRequiresApiKey,
+  getProviderQuality,
+  type ProviderDefinition,
+} from './provider-definitions';
+
+export {
+  getCompiledPatterns,
+  clearPatternsCache,
+  PROVIDER_PATTERNS,
+  DEFAULT_CLASSIFICATION,
+  type ProviderPatternConfig,
+  type SuggestedMode,
+} from './router-patterns';
+
+export {
+  BaseProviderClient,
+  SimpleRestClient,
+  type BaseSearchResult,
+  type BaseSearchResponse,
+  type ProviderHealthStatus,
+  type BaseClientOptions,
+  type SimpleRestOptions,
+} from './base-client';
 
 // =============================================================================
 // FIRECRAWL TOOLS

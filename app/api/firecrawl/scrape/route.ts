@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirecrawlClient } from '@/lib/firecrawl';
+import { handleApiError, validationError } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,10 +8,7 @@ export async function POST(request: NextRequest) {
     const { url, onlyMainContent = true, includeLinks = false, apiKey } = body;
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+      return validationError('URL');
     }
 
     const firecrawl = new FirecrawlClient(apiKey);
@@ -21,15 +19,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Scrape API error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to scrape URL' 
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Scrape API');
   }
 }
-
-

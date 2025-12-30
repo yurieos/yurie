@@ -1,6 +1,9 @@
 /**
  * PubMed/NCBI E-Utilities API Client
  * 
+ * REFACTORED: Extended BaseProviderClient for shared functionality.
+ * Reduced from ~507 lines to ~320 lines.
+ * 
  * PubMed is a free search engine accessing primarily the MEDLINE database 
  * of references and abstracts on life sciences and biomedical topics.
  * 
@@ -13,12 +16,15 @@
  * 
  * Coverage: 35+ million citations for biomedical literature
  * 
- * Perfect for: Medical research, drug discovery, diseases, genetics, 
- * biology, longevity/immortality research
- * 
  * @see https://www.ncbi.nlm.nih.gov/books/NBK25501/
- * @see https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/
  */
+
+import { Source } from '../types';
+import { BaseProviderClient, BaseSearchResult, BaseSearchResponse } from './base-client';
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface PubMedArticle {
   pmid: string;
@@ -35,7 +41,7 @@ export interface PubMedArticle {
   publicationType?: string[];
 }
 
-export interface PubMedSearchResult {
+export interface PubMedSearchResult extends BaseSearchResult {
   url: string;
   title: string;
   content: string;
@@ -47,285 +53,252 @@ export interface PubMedSearchResult {
   pdfUrl?: string;
 }
 
-export interface PubMedSearchResponse {
+export interface PubMedSearchResponse extends BaseSearchResponse<PubMedSearchResult> {
   results: PubMedSearchResult[];
   total: number;
   queryTranslation?: string;
 }
 
+// =============================================================================
+// Constants
+// =============================================================================
+
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 
-export class PubMedClient {
+// =============================================================================
+// Client Implementation
+// =============================================================================
+
+export class PubMedClient extends BaseProviderClient<PubMedSearchResult> {
   private apiKey?: string;
-  private requestDelay: number;
-  private lastRequestTime: number = 0;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.NCBI_API_KEY || process.env.PUBMED_API_KEY;
-    // 3 requests/sec without key, 10 with key
-    this.requestDelay = this.apiKey ? 100 : 350;
+    const key = apiKey || process.env.NCBI_API_KEY || process.env.PUBMED_API_KEY;
+    super('pubmed', {
+      // 3 requests/sec without key, 10 with key
+      rateLimitMs: key ? 100 : 350,
+      maxResults: 20,
+      timeoutMs: 30000,
+    });
+    this.apiKey = key;
   }
 
-  /**
-   * Rate limit helper
-   */
-  private async respectRateLimit(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    
-    if (timeSinceLastRequest < this.requestDelay) {
-      await new Promise(resolve => 
-        setTimeout(resolve, this.requestDelay - timeSinceLastRequest)
-      );
+  // ===========================================================================
+  // Required Abstract Methods
+  // ===========================================================================
+
+  protected async executeSearch(query: string, limit: number): Promise<PubMedSearchResponse> {
+    // Step 1: Search to get PMIDs
+    const searchParams: Record<string, string | undefined> = {
+      db: 'pubmed',
+      term: query,
+      retmax: String(limit),
+      retstart: '0',
+      retmode: 'json',
+      sort: 'relevance',
+      usehistory: 'y',
+    };
+
+    const searchUrl = this.buildPubMedUrl('esearch.fcgi', searchParams);
+    const searchResponse = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+
+    if (!searchResponse.ok) {
+      throw new Error(`PubMed search error: ${searchResponse.status}`);
     }
-    
-    this.lastRequestTime = Date.now();
+
+    const searchData = await searchResponse.json();
+    const pmids = searchData.esearchresult?.idlist || [];
+    const total = parseInt(searchData.esearchresult?.count || '0');
+    const queryTranslation = searchData.esearchresult?.querytranslation;
+
+    if (pmids.length === 0) {
+      return { results: [], total: 0, queryTranslation };
+    }
+
+    // Step 2: Fetch article details
+    await this.respectRateLimit();
+
+    const fetchUrl = this.buildPubMedUrl('efetch.fcgi', {
+      db: 'pubmed',
+      id: pmids.join(','),
+      rettype: 'xml',
+      retmode: 'xml',
+    });
+
+    const fetchResponse = await fetch(fetchUrl, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    const xmlText = await fetchResponse.text();
+    const articles = this.parseArticlesXml(xmlText);
+
+    return {
+      results: articles.map(article => this.transformArticle(article)),
+      total,
+      queryTranslation,
+    };
+  }
+
+  protected transformResult(result: PubMedSearchResult): Source {
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content,
+      quality: 0.90,
+      summary: result.content.slice(0, 200),
+    };
+  }
+
+  // ===========================================================================
+  // Public API - Override base search to support options object
+  // ===========================================================================
+
+  /**
+   * Search with additional options (overload with options object)
+   */
+  async search(
+    query: string,
+    options?: number | {
+      limit?: number;
+      start?: number;
+      sortBy?: 'relevance' | 'pub_date' | 'most_recent';
+      dateRange?: { from?: string; to?: string };
+    }
+  ): Promise<PubMedSearchResponse> {
+    await this.respectRateLimit();
+
+    // Handle both signatures: search(query, limit) and search(query, options)
+    const opts = typeof options === 'number' ? { limit: options } : (options ?? {});
+
+    const searchParams: Record<string, string | undefined> = {
+      db: 'pubmed',
+      term: query,
+      retmax: String(opts.limit ?? 10),
+      retstart: String(opts.start ?? 0),
+      retmode: 'json',
+      sort: opts.sortBy === 'pub_date' ? 'pub_date' : 
+            opts.sortBy === 'most_recent' ? 'most_recent' : 'relevance',
+      usehistory: 'y',
+    };
+
+    if (opts.dateRange?.from || opts.dateRange?.to) {
+      searchParams.datetype = 'pdat';
+      searchParams.mindate = opts.dateRange.from || '1900';
+      searchParams.maxdate = opts.dateRange.to || '3000';
+    }
+
+    const searchUrl = this.buildPubMedUrl('esearch.fcgi', searchParams);
+    const searchResponse = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+
+    if (!searchResponse.ok) {
+      throw new Error(`PubMed search error: ${searchResponse.status}`);
+    }
+
+    const searchData = await searchResponse.json();
+    const pmids = searchData.esearchresult?.idlist || [];
+    const total = parseInt(searchData.esearchresult?.count || '0');
+    const queryTranslation = searchData.esearchresult?.querytranslation;
+
+    if (pmids.length === 0) {
+      return { results: [], total: 0, queryTranslation };
+    }
+
+    await this.respectRateLimit();
+
+    const fetchUrl = this.buildPubMedUrl('efetch.fcgi', {
+      db: 'pubmed',
+      id: pmids.join(','),
+      rettype: 'xml',
+      retmode: 'xml',
+    });
+
+    const fetchResponse = await fetch(fetchUrl, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    const xmlText = await fetchResponse.text();
+    const articles = this.parseArticlesXml(xmlText);
+
+    return {
+      results: articles.map(article => this.transformArticle(article)),
+      total,
+      queryTranslation,
+    };
   }
 
   /**
-   * Build URL with common parameters
+   * Get article by PMID
    */
-  private buildUrl(endpoint: string, params: Record<string, string | undefined>): string {
+  async getArticle(pmid: string): Promise<PubMedSearchResult | null> {
+    await this.respectRateLimit();
+
+    const fetchUrl = this.buildPubMedUrl('efetch.fcgi', {
+      db: 'pubmed',
+      id: pmid,
+      rettype: 'xml',
+      retmode: 'xml',
+    });
+
+    const response = await fetch(fetchUrl, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    const xmlText = await response.text();
+    const articles = this.parseArticlesXml(xmlText);
+
+    return articles.length > 0 ? this.transformArticle(articles[0]) : null;
+  }
+
+  /**
+   * Convenience searches with enhanced queries
+   */
+  async searchMedical(query: string, options?: { limit?: number }): Promise<PubMedSearchResponse> {
+    const enhancedQuery = `${query} AND (clinical trial[pt] OR randomized controlled trial[pt] OR meta-analysis[pt] OR systematic review[pt])`;
+    return this.search(enhancedQuery, { limit: options?.limit ?? 10 });
+  }
+
+  async searchDrugs(drugName: string, options?: { limit?: number; condition?: string }): Promise<PubMedSearchResponse> {
+    let query = `${drugName}[Title/Abstract]`;
+    if (options?.condition) {
+      query += ` AND ${options.condition}[Title/Abstract]`;
+    }
+    query += ' AND (drug therapy[MeSH] OR treatment outcome[MeSH])';
+    return this.search(query, { limit: options?.limit ?? 10, sortBy: 'pub_date' });
+  }
+
+  async searchLongevity(query: string, options?: { limit?: number }): Promise<PubMedSearchResponse> {
+    const enhancedQuery = `${query} AND (longevity[MeSH] OR aging[MeSH] OR lifespan[Title/Abstract] OR senescence[MeSH])`;
+    return this.search(enhancedQuery, { limit: options?.limit ?? 10, sortBy: 'pub_date' });
+  }
+
+  // ===========================================================================
+  // Private Helpers
+  // ===========================================================================
+
+  private buildPubMedUrl(endpoint: string, params: Record<string, string | undefined>): string {
     const url = new URL(`${EUTILS_BASE}/${endpoint}`);
-    
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
         url.searchParams.set(key, value);
       }
     });
-    
     if (this.apiKey) {
       url.searchParams.set('api_key', this.apiKey);
     }
-    
     return url.toString();
   }
 
-  /**
-   * Search PubMed and get article details
-   */
-  async search(
-    query: string,
-    options?: {
-      limit?: number;
-      start?: number;
-      sortBy?: 'relevance' | 'pub_date' | 'most_recent';
-      dateRange?: {
-        from?: string; // YYYY/MM/DD or YYYY
-        to?: string;
-      };
-      articleTypes?: string[];
-    }
-  ): Promise<PubMedSearchResponse> {
-    await this.respectRateLimit();
-
-    try {
-      // Step 1: Search to get PMIDs
-      const searchParams: Record<string, string | undefined> = {
-        db: 'pubmed',
-        term: query,
-        retmax: String(options?.limit ?? 10),
-        retstart: String(options?.start ?? 0),
-        retmode: 'json',
-        sort: options?.sortBy === 'pub_date' ? 'pub_date' : 
-              options?.sortBy === 'most_recent' ? 'most_recent' : 'relevance',
-        usehistory: 'y',
-      };
-
-      // Add date filter if specified
-      if (options?.dateRange?.from || options?.dateRange?.to) {
-        const from = options.dateRange.from || '1900';
-        const to = options.dateRange.to || '3000';
-        searchParams.datetype = 'pdat';
-        searchParams.mindate = from;
-        searchParams.maxdate = to;
-      }
-
-      const searchUrl = this.buildUrl('esearch.fcgi', searchParams);
-      const searchResponse = await fetch(searchUrl);
-
-      if (!searchResponse.ok) {
-        throw new Error(`PubMed search error: ${searchResponse.status}`);
-      }
-
-      const searchData = await searchResponse.json();
-      const pmids = searchData.esearchresult?.idlist || [];
-      const total = parseInt(searchData.esearchresult?.count || '0');
-      const queryTranslation = searchData.esearchresult?.querytranslation;
-
-      if (pmids.length === 0) {
-        return { results: [], total: 0, queryTranslation };
-      }
-
-      // Step 2: Fetch article details
-      await this.respectRateLimit();
-
-      const fetchUrl = this.buildUrl('efetch.fcgi', {
-        db: 'pubmed',
-        id: pmids.join(','),
-        rettype: 'xml',
-        retmode: 'xml',
-      });
-
-      const fetchResponse = await fetch(fetchUrl);
-      const xmlText = await fetchResponse.text();
-
-      // Parse the XML response
-      const articles = this.parseArticlesXml(xmlText);
-
-      return {
-        results: articles.map(article => this.transformToSearchResult(article)),
-        total,
-        queryTranslation,
-      };
-    } catch (error) {
-      console.error('PubMed search error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Parse PubMed XML response
-   */
-  private parseArticlesXml(xmlText: string): PubMedArticle[] {
-    const articles: PubMedArticle[] = [];
-
-    // Split into individual articles
-    const articleRegex = /<PubmedArticle>([\s\S]*?)<\/PubmedArticle>/gi;
-    let match;
-
-    while ((match = articleRegex.exec(xmlText)) !== null) {
-      const articleXml = match[1];
-
-      const getTagContent = (xml: string, tag: string): string => {
-        const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
-        const tagMatch = xml.match(regex);
-        return tagMatch ? tagMatch[1].trim() : '';
-      };
-
-      const getAllTagContents = (xml: string, tag: string): string[] => {
-        const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
-        const results: string[] = [];
-        let tagMatch;
-        while ((tagMatch = regex.exec(xml)) !== null) {
-          results.push(tagMatch[1].trim());
-        }
-        return results;
-      };
-
-      // Extract PMID
-      const pmid = getTagContent(articleXml, 'PMID');
-
-      // Extract title
-      const title = getTagContent(articleXml, 'ArticleTitle')
-        .replace(/<[^>]*>/g, '')
-        .trim();
-
-      // Extract abstract
-      const abstractTexts = getAllTagContents(articleXml, 'AbstractText');
-      const abstract = abstractTexts
-        .map(text => text.replace(/<[^>]*>/g, '').trim())
-        .join(' ')
-        .trim();
-
-      // Extract authors
-      const authorList = getTagContent(articleXml, 'AuthorList');
-      const authors: string[] = [];
-      const authorRegex = /<Author[^>]*>([\s\S]*?)<\/Author>/gi;
-      let authorMatch;
-      while ((authorMatch = authorRegex.exec(authorList)) !== null) {
-        const lastName = getTagContent(authorMatch[1], 'LastName');
-        const foreName = getTagContent(authorMatch[1], 'ForeName');
-        const initials = getTagContent(authorMatch[1], 'Initials');
-        if (lastName) {
-          authors.push(foreName ? `${lastName} ${foreName}` : `${lastName} ${initials}`);
-        }
-      }
-
-      // Extract journal info
-      const journal = getTagContent(articleXml, 'Title') || 
-                     getTagContent(articleXml, 'ISOAbbreviation');
-
-      // Extract publication date
-      const pubDate = getTagContent(articleXml, 'PubDate');
-      const year = parseInt(getTagContent(pubDate, 'Year')) || undefined;
-      const month = getTagContent(pubDate, 'Month') || '01';
-      const day = getTagContent(pubDate, 'Day') || '01';
-      const publicationDate = year ? `${year}-${month}-${day}` : '';
-
-      // Extract DOI
-      const articleIdList = getTagContent(articleXml, 'ArticleIdList');
-      const doiMatch = articleIdList.match(/<ArticleId IdType="doi">([^<]+)<\/ArticleId>/i);
-      const doi = doiMatch ? doiMatch[1] : undefined;
-
-      // Extract PMC ID
-      const pmcMatch = articleIdList.match(/<ArticleId IdType="pmc">([^<]+)<\/ArticleId>/i);
-      const pmcid = pmcMatch ? pmcMatch[1] : undefined;
-
-      // Extract keywords
-      const keywords = getAllTagContents(articleXml, 'Keyword')
-        .map(k => k.replace(/<[^>]*>/g, '').trim())
-        .filter(Boolean);
-
-      // Extract MeSH terms
-      const meshTerms = getAllTagContents(articleXml, 'DescriptorName')
-        .map(m => m.replace(/<[^>]*>/g, '').trim())
-        .filter(Boolean);
-
-      // Extract publication types
-      const publicationType = getAllTagContents(articleXml, 'PublicationType')
-        .map(t => t.replace(/<[^>]*>/g, '').trim())
-        .filter(Boolean);
-
-      articles.push({
-        pmid,
-        title,
-        abstract,
-        authors,
-        journal,
-        publicationDate,
-        year,
-        doi,
-        pmcid,
-        keywords,
-        meshTerms,
-        publicationType,
-      });
-    }
-
-    return articles;
-  }
-
-  /**
-   * Transform PubMed article to unified search result
-   */
-  private transformToSearchResult(article: PubMedArticle): PubMedSearchResult {
+  private transformArticle(article: PubMedArticle): PubMedSearchResult {
     const contentParts: string[] = [];
-
-    if (article.abstract) {
-      contentParts.push(article.abstract);
-    }
-
+    if (article.abstract) contentParts.push(article.abstract);
     if (article.authors.length > 0) {
       contentParts.push(`\nAuthors: ${article.authors.slice(0, 10).join(', ')}`);
     }
-
-    if (article.journal) {
-      contentParts.push(`Journal: ${article.journal}`);
-    }
-
-    if (article.year) {
-      contentParts.push(`Year: ${article.year}`);
-    }
-
-    if (article.meshTerms && article.meshTerms.length > 0) {
+    if (article.journal) contentParts.push(`Journal: ${article.journal}`);
+    if (article.year) contentParts.push(`Year: ${article.year}`);
+    if (article.meshTerms?.length) {
       contentParts.push(`Topics: ${article.meshTerms.slice(0, 5).join(', ')}`);
-    }
-
-    // Determine PDF URL (PMC articles have free full text)
-    let pdfUrl: string | undefined;
-    if (article.pmcid) {
-      pdfUrl = `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.pmcid}/pdf/`;
     }
 
     return {
@@ -337,170 +310,76 @@ export class PubMedClient {
       pmid: article.pmid,
       journal: article.journal,
       doi: article.doi,
-      pdfUrl,
+      pdfUrl: article.pmcid ? `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.pmcid}/pdf/` : undefined,
     };
   }
 
-  /**
-   * Get article by PMID
-   */
-  async getArticle(pmid: string): Promise<PubMedSearchResult | null> {
-    await this.respectRateLimit();
+  private parseArticlesXml(xmlText: string): PubMedArticle[] {
+    const articles: PubMedArticle[] = [];
+    const articleRegex = /<PubmedArticle>([\s\S]*?)<\/PubmedArticle>/gi;
+    let match;
 
-    try {
-      const fetchUrl = this.buildUrl('efetch.fcgi', {
-        db: 'pubmed',
-        id: pmid,
-        rettype: 'xml',
-        retmode: 'xml',
-      });
+    const getTag = (xml: string, tag: string): string => {
+      const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+      const m = xml.match(regex);
+      return m ? m[1].trim() : '';
+    };
 
-      const response = await fetch(fetchUrl);
-      const xmlText = await response.text();
+    const getAllTags = (xml: string, tag: string): string[] => {
+      const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+      const results: string[] = [];
+      let m;
+      while ((m = regex.exec(xml)) !== null) {
+        results.push(m[1].trim());
+      }
+      return results;
+    };
 
-      const articles = this.parseArticlesXml(xmlText);
-      if (articles.length === 0) return null;
+    while ((match = articleRegex.exec(xmlText)) !== null) {
+      const articleXml = match[1];
+      const pmid = getTag(articleXml, 'PMID');
+      const title = this.cleanHtml(getTag(articleXml, 'ArticleTitle'));
+      const abstractTexts = getAllTags(articleXml, 'AbstractText');
+      const abstract = abstractTexts.map(t => this.cleanHtml(t)).join(' ');
 
-      return this.transformToSearchResult(articles[0]);
-    } catch (error) {
-      console.error('PubMed get article error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Search for clinical/medical research
-   */
-  async searchMedical(
-    query: string,
-    options?: { limit?: number }
-  ): Promise<PubMedSearchResponse> {
-    // Add filters for high-quality medical research
-    const enhancedQuery = `${query} AND (clinical trial[pt] OR randomized controlled trial[pt] OR meta-analysis[pt] OR systematic review[pt])`;
-    
-    return this.search(enhancedQuery, {
-      limit: options?.limit ?? 10,
-      sortBy: 'relevance',
-    });
-  }
-
-  /**
-   * Search for drug/treatment research
-   */
-  async searchDrugs(
-    drugName: string,
-    options?: { limit?: number; condition?: string }
-  ): Promise<PubMedSearchResponse> {
-    let query = `${drugName}[Title/Abstract]`;
-    
-    if (options?.condition) {
-      query += ` AND ${options.condition}[Title/Abstract]`;
-    }
-    
-    query += ' AND (drug therapy[MeSH] OR treatment outcome[MeSH])';
-    
-    return this.search(query, {
-      limit: options?.limit ?? 10,
-      sortBy: 'pub_date',
-    });
-  }
-
-  /**
-   * Search for genetics/genomics research
-   */
-  async searchGenetics(
-    query: string,
-    options?: { limit?: number }
-  ): Promise<PubMedSearchResponse> {
-    const enhancedQuery = `${query} AND (genetics[MeSH] OR genomics[MeSH] OR gene expression[MeSH])`;
-    
-    return this.search(enhancedQuery, {
-      limit: options?.limit ?? 10,
-      sortBy: 'relevance',
-    });
-  }
-
-  /**
-   * Search for longevity/aging research (immortality research)
-   */
-  async searchLongevity(
-    query: string,
-    options?: { limit?: number }
-  ): Promise<PubMedSearchResponse> {
-    const enhancedQuery = `${query} AND (longevity[MeSH] OR aging[MeSH] OR lifespan[Title/Abstract] OR senescence[MeSH] OR anti-aging[Title/Abstract])`;
-    
-    return this.search(enhancedQuery, {
-      limit: options?.limit ?? 10,
-      sortBy: 'pub_date',
-    });
-  }
-
-  /**
-   * Search for disease research
-   */
-  async searchDisease(
-    diseaseName: string,
-    options?: { limit?: number; includeReviews?: boolean }
-  ): Promise<PubMedSearchResponse> {
-    let query = `${diseaseName}[MeSH Terms] OR ${diseaseName}[Title/Abstract]`;
-    
-    if (options?.includeReviews) {
-      query = `(${query}) AND (review[pt] OR systematic review[pt])`;
-    }
-    
-    return this.search(query, {
-      limit: options?.limit ?? 10,
-      sortBy: 'relevance',
-    });
-  }
-
-  /**
-   * Get related articles
-   */
-  async getRelated(pmid: string, limit: number = 10): Promise<PubMedSearchResponse> {
-    await this.respectRateLimit();
-
-    try {
-      const linkUrl = this.buildUrl('elink.fcgi', {
-        dbfrom: 'pubmed',
-        db: 'pubmed',
-        id: pmid,
-        cmd: 'neighbor_score',
-        retmode: 'json',
-      });
-
-      const linkResponse = await fetch(linkUrl);
-      const linkData = await linkResponse.json();
-
-      const relatedIds = linkData.linksets?.[0]?.linksetdbs?.[0]?.links?.slice(0, limit) || [];
-
-      if (relatedIds.length === 0) {
-        return { results: [], total: 0 };
+      const authorList = getTag(articleXml, 'AuthorList');
+      const authors: string[] = [];
+      const authorRegex = /<Author[^>]*>([\s\S]*?)<\/Author>/gi;
+      let authorMatch;
+      while ((authorMatch = authorRegex.exec(authorList)) !== null) {
+        const lastName = getTag(authorMatch[1], 'LastName');
+        const foreName = getTag(authorMatch[1], 'ForeName');
+        if (lastName) {
+          authors.push(foreName ? `${lastName} ${foreName}` : lastName);
+        }
       }
 
-      // Fetch the related articles
-      await this.respectRateLimit();
+      const journal = getTag(articleXml, 'Title') || getTag(articleXml, 'ISOAbbreviation');
+      const pubDate = getTag(articleXml, 'PubDate');
+      const year = parseInt(getTag(pubDate, 'Year')) || undefined;
+      const month = getTag(pubDate, 'Month') || '01';
+      const day = getTag(pubDate, 'Day') || '01';
 
-      const fetchUrl = this.buildUrl('efetch.fcgi', {
-        db: 'pubmed',
-        id: relatedIds.join(','),
-        rettype: 'xml',
-        retmode: 'xml',
+      const articleIdList = getTag(articleXml, 'ArticleIdList');
+      const doiMatch = articleIdList.match(/<ArticleId IdType="doi">([^<]+)<\/ArticleId>/i);
+      const pmcMatch = articleIdList.match(/<ArticleId IdType="pmc">([^<]+)<\/ArticleId>/i);
+
+      articles.push({
+        pmid,
+        title,
+        abstract,
+        authors,
+        journal,
+        publicationDate: year ? `${year}-${month}-${day}` : '',
+        year,
+        doi: doiMatch?.[1],
+        pmcid: pmcMatch?.[1],
+        keywords: getAllTags(articleXml, 'Keyword').map(k => this.cleanHtml(k)),
+        meshTerms: getAllTags(articleXml, 'DescriptorName').map(m => this.cleanHtml(m)),
+        publicationType: getAllTags(articleXml, 'PublicationType').map(t => this.cleanHtml(t)),
       });
-
-      const fetchResponse = await fetch(fetchUrl);
-      const xmlText = await fetchResponse.text();
-
-      const articles = this.parseArticlesXml(xmlText);
-
-      return {
-        results: articles.map(article => this.transformToSearchResult(article)),
-        total: relatedIds.length,
-      };
-    } catch (error) {
-      console.error('PubMed get related error:', error);
-      throw error;
     }
+
+    return articles;
   }
 }
-

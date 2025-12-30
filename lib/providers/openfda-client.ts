@@ -12,6 +12,10 @@
  * Register for API key: https://open.fda.gov/apis/authentication/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface OpenFDASearchResult {
   url: string;
   title: string;
@@ -130,7 +134,7 @@ export class OpenFDAClient {
         total: data.meta?.results?.total || results.length,
       };
     } catch (error) {
-      console.error('OpenFDA drug label search error:', error);
+      log.debug('OpenFDA drug label search error:', error);
       throw error;
     }
   }
@@ -177,7 +181,7 @@ export class OpenFDAClient {
         total: data.meta?.results?.total || results.length,
       };
     } catch (error) {
-      console.error('OpenFDA drug event search error:', error);
+      log.debug('OpenFDA drug event search error:', error);
       throw error;
     }
   }
@@ -218,7 +222,7 @@ export class OpenFDAClient {
         total: data.meta?.results?.total || results.length,
       };
     } catch (error) {
-      console.error('OpenFDA device event search error:', error);
+      log.debug('OpenFDA device event search error:', error);
       throw error;
     }
   }
@@ -259,7 +263,7 @@ export class OpenFDAClient {
         total: data.meta?.results?.total || results.length,
       };
     } catch (error) {
-      console.error('OpenFDA food recall search error:', error);
+      log.debug('OpenFDA food recall search error:', error);
       throw error;
     }
   }

@@ -22,6 +22,10 @@
  * @see https://products.wolframalpha.com/api/documentation
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface WolframAlphaSearchResult {
   url: string;
   title: string;
@@ -159,7 +163,7 @@ export class WolframAlphaClient {
     this.appId = process.env.WOLFRAM_ALPHA_APP_ID || process.env.WOLFRAM_APP_ID || null;
     
     if (this.appId) {
-      console.log('✓ Wolfram Alpha client initialized');
+      log.debug('✓ Wolfram Alpha client initialized');
     }
   }
 
@@ -262,7 +266,7 @@ export class WolframAlphaClient {
         timing: data.queryresult.timing,
       };
     } catch (error) {
-      console.error('Wolfram Alpha search error:', error);
+      log.debug('Wolfram Alpha search error:', error);
       throw error;
     }
   }
@@ -297,7 +301,7 @@ export class WolframAlphaClient {
       const text = await response.text();
       return text.trim() || null;
     } catch (error) {
-      console.error('Wolfram Alpha short answer error:', error);
+      log.debug('Wolfram Alpha short answer error:', error);
       return null;
     }
   }
@@ -331,7 +335,7 @@ export class WolframAlphaClient {
       const text = await response.text();
       return text.trim() || null;
     } catch (error) {
-      console.error('Wolfram Alpha spoken answer error:', error);
+      log.debug('Wolfram Alpha spoken answer error:', error);
       return null;
     }
   }

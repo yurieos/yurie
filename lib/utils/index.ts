@@ -1,5 +1,5 @@
 /**
- * Utility exports for reliability, caching, and resilience patterns
+ * Utility exports for reliability, caching, resilience patterns, and logging
  */
 
 // Retry with exponential backoff
@@ -35,4 +35,13 @@ export {
   type CacheStats,
   type CachedSearchResult
 } from './cache';
+
+// Logging utilities
+export {
+  logger,
+  loggers,
+  createLogger,
+  silentLogger,
+  type Logger,
+} from './logger';
 

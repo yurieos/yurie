@@ -4,6 +4,8 @@
  * Access to 170+ million items from the Library of Congress including
  * photographs, maps, manuscripts, newspapers, audio, and more.
  * 
+ * REFACTORED: Consolidated common patterns, reduced duplication.
+ * 
  * Coverage: 170M+ items (photos, newspapers, maps, manuscripts, audio)
  * Rate Limit: Generous, reasonable use
  * 100% FREE - No API key required
@@ -12,10 +14,14 @@
  * @see https://chroniclingamerica.loc.gov/about/api/
  */
 
-export interface LOCSearchResult {
-  url: string;
-  title: string;
-  content: string;
+import { Source } from '../types';
+import { BaseProviderClient, BaseSearchResult, BaseSearchResponse } from './base-client';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface LOCSearchResult extends BaseSearchResult {
   date?: string;
   contributor?: string[];
   subject?: string[];
@@ -35,10 +41,7 @@ export interface LOCSearchResponse {
   pages: number;
 }
 
-export interface ChroniclingAmericaResult {
-  url: string;
-  title: string;
-  content: string;
+export interface ChroniclingAmericaResult extends BaseSearchResult {
   date: string;
   newspaper: string;
   state?: string;
@@ -57,6 +60,7 @@ export interface ChroniclingAmericaResponse {
   pages: number;
 }
 
+// Internal API types
 interface LOCItem {
   id: string;
   title?: string;
@@ -73,18 +77,6 @@ interface LOCItem {
   rights?: string;
   partof?: string[];
   url?: string;
-  access_restricted?: boolean;
-}
-
-interface LOCAPIResponse {
-  results: LOCItem[];
-  pagination: {
-    total: number;
-    pages: number;
-    current: number;
-    next?: string;
-    previous?: string;
-  };
 }
 
 interface ChroniclingAmericaPage {
@@ -93,162 +85,69 @@ interface ChroniclingAmericaPage {
   date: string;
   url: string;
   sequence: number;
-  county: string[];
   city: string[];
   state: string[];
-  edition_label: string;
   lccn: string;
   ocr_eng?: string;
-  page_url: string;
   pdf_url: string;
   jp2_url: string;
 }
 
-interface ChroniclingAmericaAPIResponse {
-  totalItems: number;
-  endIndex: number;
-  startIndex: number;
-  itemsPerPage: number;
-  items: ChroniclingAmericaPage[];
-}
+// =============================================================================
+// Constants
+// =============================================================================
 
 const LOC_API = 'https://www.loc.gov';
 const CHRONICLING_AMERICA_API = 'https://chroniclingamerica.loc.gov';
 
-export class LOCClient {
-  /**
-   * Search the Library of Congress collections
-   */
-  async search(
-    query: string,
-    options?: {
-      limit?: number;
-      page?: number;
-      format?: 'photos' | 'maps' | 'manuscripts' | 'newspapers' | 'audio' | 'film' | 'books';
-      dates?: string; // e.g., "1800/1900"
-      location?: string;
-      subject?: string;
-      language?: string;
-    }
-  ): Promise<LOCSearchResponse> {
-    try {
-      const params = new URLSearchParams({
-        q: query,
-        fo: 'json',
-        c: String(options?.limit ?? 10),
-        sp: String(options?.page ?? 1),
-      });
+const FORMAT_MAP: Record<string, string> = {
+  photos: 'photos',
+  maps: 'maps',
+  manuscripts: 'manuscripts',
+  newspapers: 'newspapers',
+  audio: 'audio',
+  film: 'film-and-videos',
+  books: 'books',
+};
 
-      if (options?.dates) params.set('dates', options.dates);
-      if (options?.location) params.set('fa', `location:${options.location}`);
-      if (options?.subject) params.set('fa', `subject:${options.subject}`);
-      if (options?.language) params.set('fa', `language:${options.language}`);
+// =============================================================================
+// LOC Client (Main Collections)
+// =============================================================================
 
-      // Build URL based on format filter
-      let endpoint = `${LOC_API}/search`;
-      if (options?.format) {
-        const formatMap: Record<string, string> = {
-          photos: 'photos',
-          maps: 'maps',
-          manuscripts: 'manuscripts',
-          newspapers: 'newspapers',
-          audio: 'audio',
-          film: 'film-and-videos',
-          books: 'books',
-        };
-        endpoint = `${LOC_API}/${formatMap[options.format]}`;
-      }
-
-      const response = await fetch(`${endpoint}/?${params}`);
-      if (!response.ok) throw new Error(`LOC API error: ${response.status}`);
-
-      const data: LOCAPIResponse = await response.json();
-
-      return {
-        results: (data.results || []).map(item => this.transformItem(item)),
-        total: data.pagination?.total || 0,
-        pages: data.pagination?.pages || 1,
-      };
-    } catch (error) {
-      console.error('LOC search error:', error);
-      throw error;
-    }
+export class LOCClient extends BaseProviderClient<LOCSearchResult> {
+  constructor() {
+    super('loc', { rateLimitMs: 100, maxResults: 25 });
   }
 
-  /**
-   * Search historical photographs
-   */
-  async searchPhotos(
-    query: string,
-    options?: {
-      limit?: number;
-      dates?: string;
-    }
-  ): Promise<LOCSearchResponse> {
-    return this.search(query, { ...options, format: 'photos' });
-  }
-
-  /**
-   * Search historical maps
-   */
-  async searchMaps(
-    query: string,
-    options?: {
-      limit?: number;
-      dates?: string;
-    }
-  ): Promise<LOCSearchResponse> {
-    return this.search(query, { ...options, format: 'maps' });
-  }
-
-  /**
-   * Search manuscripts and documents
-   */
-  async searchManuscripts(
-    query: string,
-    options?: {
-      limit?: number;
-      dates?: string;
-    }
-  ): Promise<LOCSearchResponse> {
-    return this.search(query, { ...options, format: 'manuscripts' });
-  }
-
-  /**
-   * Get item details by ID
-   */
-  async getItem(locId: string): Promise<LOCSearchResult | null> {
-    try {
-      const response = await fetch(`${LOC_API}/item/${locId}/?fo=json`);
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error(`LOC API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const item = data.item || data;
-      
-      return this.transformItem(item);
-    } catch (error) {
-      console.error('LOC get item error:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Transform LOC item to our format
-   */
-  private transformItem(item: LOCItem): LOCSearchResult {
-    const description = Array.isArray(item.description) 
-      ? item.description.join(' ') 
-      : (item.description || '');
-    
-    const title = typeof item.title === 'string' 
-      ? item.title 
-      : (Array.isArray(item.title) ? item.title[0] : 'Untitled');
+  protected async executeSearch(query: string, limit: number): Promise<BaseSearchResponse<LOCSearchResult>> {
+    const params = new URLSearchParams({ q: query, fo: 'json', c: String(limit), sp: '1' });
+    const data = await this.fetchWithTimeout<{
+      results: LOCItem[];
+      pagination: { total: number; pages: number };
+    }>(`${LOC_API}/search/?${params}`);
 
     return {
-      url: item.url || `https://www.loc.gov/item/${item.id}/`,
+      results: (data.results || []).map(item => this.transformItem(item)),
+      total: data.pagination?.total || 0,
+    };
+  }
+
+  protected transformResult(result: LOCSearchResult): Source {
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content || '',
+      quality: 0.85,
+      summary: result.content?.slice(0, 300),
+    };
+  }
+
+  private transformItem(item: LOCItem): LOCSearchResult {
+    const description = Array.isArray(item.description) ? item.description.join(' ') : '';
+    const title = typeof item.title === 'string' ? item.title : (Array.isArray(item.title) ? item.title[0] : 'Untitled');
+
+    return {
+      url: item.url || `${LOC_API}/item/${item.id}/`,
       title,
       content: description || `${item.type?.[0] || 'Item'} from the Library of Congress collection`,
       date: item.date || item.dates?.[0],
@@ -264,155 +163,94 @@ export class LOCClient {
       locId: item.id,
     };
   }
-}
 
-/**
- * Chronicling America Client - Historical Newspapers (1690-1963)
- */
-export class ChroniclingAmericaClient {
-  /**
-   * Search historical newspapers
-   */
-  async search(
+  // Public API (backward compatibility)
+  async searchItems(
     query: string,
     options?: {
       limit?: number;
       page?: number;
-      state?: string;
-      dateFrom?: string; // YYYY-MM-DD
-      dateTo?: string; // YYYY-MM-DD
-      language?: string;
-      lccn?: string; // Library of Congress Control Number
+      format?: 'photos' | 'maps' | 'manuscripts' | 'newspapers' | 'audio' | 'film' | 'books';
+      dates?: string;
     }
-  ): Promise<ChroniclingAmericaResponse> {
+  ): Promise<LOCSearchResponse> {
+    const limit = options?.limit ?? 10;
+    const params = new URLSearchParams({ q: query, fo: 'json', c: String(limit), sp: String(options?.page ?? 1) });
+    if (options?.dates) params.set('dates', options.dates);
+
+    const endpoint = options?.format ? `${LOC_API}/${FORMAT_MAP[options.format]}` : `${LOC_API}/search`;
+    const data = await this.fetchWithTimeout<{
+      results: LOCItem[];
+      pagination: { total: number; pages: number };
+    }>(`${endpoint}/?${params}`);
+
+    return {
+      results: (data.results || []).map(item => this.transformItem(item)),
+      total: data.pagination?.total || 0,
+      pages: data.pagination?.pages || 1,
+    };
+  }
+
+  async searchPhotos(query: string, options?: { limit?: number; dates?: string }): Promise<LOCSearchResponse> {
+    return this.searchItems(query, { ...options, format: 'photos' });
+  }
+
+  async searchMaps(query: string, options?: { limit?: number; dates?: string }): Promise<LOCSearchResponse> {
+    return this.searchItems(query, { ...options, format: 'maps' });
+  }
+
+  async searchManuscripts(query: string, options?: { limit?: number; dates?: string }): Promise<LOCSearchResponse> {
+    return this.searchItems(query, { ...options, format: 'manuscripts' });
+  }
+
+  async getItem(locId: string): Promise<LOCSearchResult | null> {
     try {
-      const params = new URLSearchParams({
-        andtext: query,
-        format: 'json',
-        rows: String(options?.limit ?? 10),
-        page: String(options?.page ?? 1),
-      });
-
-      if (options?.state) params.set('state', options.state);
-      if (options?.dateFrom) params.set('date1', options.dateFrom.replace(/-/g, ''));
-      if (options?.dateTo) params.set('date2', options.dateTo.replace(/-/g, ''));
-      if (options?.language) params.set('language', options.language);
-      if (options?.lccn) params.set('lccn', options.lccn);
-
-      const response = await fetch(`${CHRONICLING_AMERICA_API}/search/pages/results/?${params}`);
-      if (!response.ok) throw new Error(`Chronicling America API error: ${response.status}`);
-
-      const data: ChroniclingAmericaAPIResponse = await response.json();
-
-      return {
-        results: (data.items || []).map(item => this.transformPage(item)),
-        total: data.totalItems,
-        pages: Math.ceil(data.totalItems / (options?.limit ?? 10)),
-      };
-    } catch (error) {
-      console.error('Chronicling America search error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Search newspapers by state
-   */
-  async searchByState(
-    query: string,
-    state: string,
-    options?: {
-      limit?: number;
-      dateFrom?: string;
-      dateTo?: string;
-    }
-  ): Promise<ChroniclingAmericaResponse> {
-    return this.search(query, { ...options, state });
-  }
-
-  /**
-   * Search newspapers by date range
-   */
-  async searchByDateRange(
-    query: string,
-    dateFrom: string,
-    dateTo: string,
-    options?: {
-      limit?: number;
-      state?: string;
-    }
-  ): Promise<ChroniclingAmericaResponse> {
-    return this.search(query, { ...options, dateFrom, dateTo });
-  }
-
-  /**
-   * Get available newspapers (titles)
-   */
-  async getNewspapers(
-    options?: {
-      state?: string;
-      limit?: number;
-    }
-  ): Promise<Array<{ title: string; lccn: string; state: string; startYear: string; endYear: string }>> {
-    try {
-      let url = `${CHRONICLING_AMERICA_API}/newspapers.json`;
-      if (options?.state) {
-        url = `${CHRONICLING_AMERICA_API}/newspapers/?state=${options.state}&format=json`;
-      }
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Chronicling America API error: ${response.status}`);
-
-      const data = await response.json();
-      const newspapers = data.newspapers || [];
-      
-      return newspapers.slice(0, options?.limit ?? 50).map((paper: {
-        title: string;
-        lccn: string;
-        state: string;
-        start_year: string;
-        end_year: string;
-      }) => ({
-        title: paper.title,
-        lccn: paper.lccn,
-        state: paper.state,
-        startYear: paper.start_year,
-        endYear: paper.end_year,
-      }));
-    } catch (error) {
-      console.error('Chronicling America newspapers fetch error:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get OCR text for a specific page
-   */
-  async getPageText(pageUrl: string): Promise<string | null> {
-    try {
-      // Convert page URL to OCR text URL
-      const ocrUrl = pageUrl.replace(/\/$/, '') + '/ocr.txt';
-      const response = await fetch(ocrUrl);
-      
-      if (!response.ok) return null;
-      return await response.text();
-    } catch (error) {
-      console.error('Chronicling America OCR fetch error:', error);
+      const data = await this.fetchWithTimeout<{ item?: LOCItem }>(`${LOC_API}/item/${locId}/?fo=json`);
+      return data.item ? this.transformItem(data.item) : null;
+    } catch {
       return null;
     }
   }
+}
 
-  /**
-   * Transform newspaper page to our format
-   */
+// =============================================================================
+// Chronicling America Client (Historical Newspapers)
+// =============================================================================
+
+export class ChroniclingAmericaClient extends BaseProviderClient<ChroniclingAmericaResult> {
+  constructor() {
+    super('chronicling-america', { rateLimitMs: 100, maxResults: 25 });
+  }
+
+  protected async executeSearch(query: string, limit: number): Promise<BaseSearchResponse<ChroniclingAmericaResult>> {
+    const params = new URLSearchParams({ andtext: query, format: 'json', rows: String(limit), page: '1' });
+    const data = await this.fetchWithTimeout<{
+      items: ChroniclingAmericaPage[];
+      totalItems: number;
+    }>(`${CHRONICLING_AMERICA_API}/search/pages/results/?${params}`);
+
+    return {
+      results: (data.items || []).map(item => this.transformPage(item)),
+      total: data.totalItems || 0,
+    };
+  }
+
+  protected transformResult(result: ChroniclingAmericaResult): Source {
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content || '',
+      quality: 0.85,
+      summary: `${result.newspaper} - ${result.date}`,
+    };
+  }
+
   private transformPage(page: ChroniclingAmericaPage): ChroniclingAmericaResult {
-    const content = page.ocr_eng || 
-      `Historical newspaper page from ${page.title}, ${page.date}`;
-
+    const content = page.ocr_eng || `Historical newspaper page from ${page.title}, ${page.date}`;
     return {
       url: page.url || `${CHRONICLING_AMERICA_API}/lccn/${page.lccn}/${page.date}/ed-1/seq-${page.sequence}/`,
       title: `${page.title} - ${page.date}`,
-      content: content.slice(0, 2000), // Truncate OCR text
+      content: content.slice(0, 2000),
       date: page.date,
       newspaper: page.title,
       state: page.state?.[0],
@@ -425,11 +263,70 @@ export class ChroniclingAmericaClient {
       lccn: page.lccn,
     };
   }
+
+  // Public API (backward compatibility)
+  async searchPages(
+    query: string,
+    options?: {
+      limit?: number;
+      page?: number;
+      state?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    }
+  ): Promise<ChroniclingAmericaResponse> {
+    const limit = options?.limit ?? 10;
+    const params = new URLSearchParams({ andtext: query, format: 'json', rows: String(limit), page: String(options?.page ?? 1) });
+    if (options?.state) params.set('state', options.state);
+    if (options?.dateFrom) params.set('date1', options.dateFrom.replace(/-/g, ''));
+    if (options?.dateTo) params.set('date2', options.dateTo.replace(/-/g, ''));
+
+    const data = await this.fetchWithTimeout<{
+      items: ChroniclingAmericaPage[];
+      totalItems: number;
+    }>(`${CHRONICLING_AMERICA_API}/search/pages/results/?${params}`);
+
+    return {
+      results: (data.items || []).map(item => this.transformPage(item)),
+      total: data.totalItems,
+      pages: Math.ceil(data.totalItems / limit),
+    };
+  }
+
+  async searchByState(query: string, state: string, options?: { limit?: number }): Promise<ChroniclingAmericaResponse> {
+    return this.searchPages(query, { ...options, state });
+  }
+
+  async searchByDateRange(query: string, dateFrom: string, dateTo: string, options?: { limit?: number }): Promise<ChroniclingAmericaResponse> {
+    return this.searchPages(query, { ...options, dateFrom, dateTo });
+  }
+
+  async getNewspapers(options?: { state?: string; limit?: number }): Promise<Array<{ title: string; lccn: string; state: string; startYear: string; endYear: string }>> {
+    try {
+      const url = options?.state ? `${CHRONICLING_AMERICA_API}/newspapers/?state=${options.state}&format=json` : `${CHRONICLING_AMERICA_API}/newspapers.json`;
+      const data = await this.fetchWithTimeout<{ newspapers: Array<{ title: string; lccn: string; state: string; start_year: string; end_year: string }> }>(url);
+      return (data.newspapers || []).slice(0, options?.limit ?? 50).map(p => ({
+        title: p.title, lccn: p.lccn, state: p.state, startYear: p.start_year, endYear: p.end_year,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getPageText(pageUrl: string): Promise<string | null> {
+    try {
+      const response = await fetch(pageUrl.replace(/\/$/, '') + '/ocr.txt');
+      return response.ok ? response.text() : null;
+    } catch {
+      return null;
+    }
+  }
 }
 
-/**
- * Combined Library of Congress client
- */
+// =============================================================================
+// Combined Client (Convenience Wrapper)
+// =============================================================================
+
 export class LibraryOfCongressClient {
   public loc: LOCClient;
   public newspapers: ChroniclingAmericaClient;
@@ -439,33 +336,11 @@ export class LibraryOfCongressClient {
     this.newspapers = new ChroniclingAmericaClient();
   }
 
-  /**
-   * Unified search across all LOC resources
-   */
-  async search(
-    query: string,
-    options?: {
-      limit?: number;
-      includeNewspapers?: boolean;
-    }
-  ): Promise<LOCSearchResponse> {
-    return this.loc.search(query, options);
+  async search(query: string, options?: { limit?: number }): Promise<LOCSearchResponse> {
+    return this.loc.searchItems(query, options);
   }
 
-  /**
-   * Search historical newspapers
-   */
-  async searchNewspapers(
-    query: string,
-    options?: {
-      limit?: number;
-      state?: string;
-      dateFrom?: string;
-      dateTo?: string;
-    }
-  ): Promise<ChroniclingAmericaResponse> {
-    return this.newspapers.search(query, options);
+  async searchNewspapers(query: string, options?: { limit?: number; state?: string; dateFrom?: string; dateTo?: string }): Promise<ChroniclingAmericaResponse> {
+    return this.newspapers.searchPages(query, options);
   }
 }
-
-

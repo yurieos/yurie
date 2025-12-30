@@ -11,6 +11,10 @@
  * @see https://datahelpdesk.worldbank.org/knowledgebase/articles/889392-api-documentation
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface WorldBankSearchResult {
   url: string;
   title: string;
@@ -67,7 +71,9 @@ const WORLDBANK_API = 'https://api.worldbank.org/v2';
 
 export class WorldBankClient {
   /**
-   * Search for indicators
+   * Search for indicators using keyword-based mapping
+   * World Bank API doesn't have a true search endpoint, so we use keyword matching
+   * to common indicators and fetch actual data
    */
   async searchIndicators(
     query: string,
@@ -76,36 +82,81 @@ export class WorldBankClient {
     }
   ): Promise<WorldBankSearchResponse> {
     try {
-      const params = new URLSearchParams({
-        format: 'json',
-        per_page: String(options?.limit ?? 10),
-      });
+      // Map common query terms to known indicator IDs
+      const indicatorMappings: Record<string, string[]> = {
+        // Poverty
+        'poverty': ['SI.POV.DDAY', 'SI.POV.GINI', 'SI.POV.NAHC', 'SI.POV.GAPS'],
+        'poor': ['SI.POV.DDAY', 'SI.POV.GINI'],
+        // Population
+        'population': ['SP.POP.TOTL', 'SP.POP.GROW', 'SP.URB.TOTL.IN.ZS'],
+        // GDP
+        'gdp': ['NY.GDP.MKTP.CD', 'NY.GDP.PCAP.CD', 'NY.GDP.MKTP.KD.ZG'],
+        'economic': ['NY.GDP.MKTP.CD', 'NY.GDP.PCAP.CD', 'NE.EXP.GNFS.ZS'],
+        // Inflation
+        'inflation': ['FP.CPI.TOTL.ZG', 'NY.GDP.DEFL.KD.ZG'],
+        'cpi': ['FP.CPI.TOTL.ZG'],
+        // Employment
+        'unemployment': ['SL.UEM.TOTL.ZS', 'SL.UEM.TOTL.NE.ZS'],
+        'employment': ['SL.EMP.TOTL.SP.ZS', 'SL.EMP.WORK.ZS'],
+        'labor': ['SL.TLF.TOTL.IN', 'SL.TLF.ACTI.ZS'],
+        // Health
+        'health': ['SH.XPD.CHEX.GD.ZS', 'SH.DYN.MORT', 'SP.DYN.LE00.IN'],
+        'life expectancy': ['SP.DYN.LE00.IN', 'SP.DYN.LE00.MA.IN', 'SP.DYN.LE00.FE.IN'],
+        'mortality': ['SH.DYN.MORT', 'SP.DYN.IMRT.IN'],
+        // Education
+        'education': ['SE.ADT.LITR.ZS', 'SE.PRM.ENRR', 'SE.SEC.ENRR'],
+        'literacy': ['SE.ADT.LITR.ZS', 'SE.ADT.LITR.FE.ZS', 'SE.ADT.LITR.MA.ZS'],
+        // Trade
+        'trade': ['NE.EXP.GNFS.ZS', 'NE.IMP.GNFS.ZS', 'TG.VAL.TOTL.GD.ZS'],
+        'export': ['NE.EXP.GNFS.ZS', 'TX.VAL.MRCH.CD.WT'],
+        'import': ['NE.IMP.GNFS.ZS', 'TM.VAL.MRCH.CD.WT'],
+        // Environment
+        'co2': ['EN.ATM.CO2E.PC', 'EN.ATM.CO2E.KT'],
+        'emissions': ['EN.ATM.CO2E.PC', 'EN.ATM.CO2E.KT'],
+        'energy': ['EG.USE.PCAP.KG.OE', 'EG.ELC.ACCS.ZS'],
+        // Internet/Technology
+        'internet': ['IT.NET.USER.ZS', 'IT.CEL.SETS.P2'],
+        'technology': ['IT.NET.USER.ZS', 'IT.CEL.SETS.P2'],
+      };
 
-      const response = await fetch(
-        `${WORLDBANK_API}/indicator?${params}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`World Bank API error: ${response.status}`);
+      // Find matching indicators based on query keywords
+      const queryLower = query.toLowerCase();
+      const matchedIndicatorIds = new Set<string>();
+      
+      for (const [keyword, indicators] of Object.entries(indicatorMappings)) {
+        if (queryLower.includes(keyword)) {
+          indicators.forEach(id => matchedIndicatorIds.add(id));
+        }
       }
 
-      const data = await response.json();
-      const indicators: WBIndicatorResponse[] = data[1] || [];
+      // If no matches, use popular indicators as fallback
+      if (matchedIndicatorIds.size === 0) {
+        ['NY.GDP.MKTP.CD', 'SP.POP.TOTL', 'SI.POV.DDAY', 'FP.CPI.TOTL.ZG', 'SL.UEM.TOTL.ZS']
+          .forEach(id => matchedIndicatorIds.add(id));
+      }
 
-      // Filter by query
-      const q = query.toLowerCase();
-      const filtered = indicators.filter(ind =>
-        ind.name?.toLowerCase().includes(q) ||
-        ind.sourceNote?.toLowerCase().includes(q) ||
-        ind.id?.toLowerCase().includes(q)
-      );
+      // Fetch indicator details for matched IDs
+      const limit = options?.limit ?? 10;
+      const indicatorIds = Array.from(matchedIndicatorIds).slice(0, limit);
+      const results: WorldBankSearchResult[] = [];
+
+      for (const id of indicatorIds) {
+        try {
+          const indicator = await this.getIndicator(id);
+          if (indicator) {
+            results.push(indicator);
+          }
+        } catch {
+          // Skip failed individual requests
+        }
+      }
 
       return {
-        results: filtered.map(ind => this.transformIndicator(ind)),
-        total: filtered.length,
+        results,
+        total: results.length,
       };
     } catch (error) {
-      console.error('World Bank indicator search error:', error);
+      log.debug('World Bank indicator search error:', error);
       throw error;
     }
   }
@@ -152,7 +203,7 @@ export class WorldBankClient {
         total: meta?.total || results.length,
       };
     } catch (error) {
-      console.error('World Bank get indicator data error:', error);
+      log.debug('World Bank get indicator data error:', error);
       throw error;
     }
   }
@@ -191,7 +242,7 @@ export class WorldBankClient {
         latitude: country.latitude,
       };
     } catch (error) {
-      console.error('World Bank get country error:', error);
+      log.debug('World Bank get country error:', error);
       throw error;
     }
   }
@@ -241,7 +292,7 @@ export class WorldBankClient {
           latitude: country.latitude,
         }));
     } catch (error) {
-      console.error('World Bank country search error:', error);
+      log.debug('World Bank country search error:', error);
       throw error;
     }
   }
@@ -307,7 +358,7 @@ export class WorldBankClient {
 
       return this.transformIndicator(indicator);
     } catch (error) {
-      console.error('World Bank get indicator error:', error);
+      log.debug('World Bank get indicator error:', error);
       throw error;
     }
   }

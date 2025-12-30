@@ -9,14 +9,27 @@
  * Rate Limit: 10 req/sec (anonymous) → higher with API key
  * 100% FREE - API key optional for higher rate limits
  * 
+ * REFACTORED: Now extends BaseProviderClient for shared functionality.
+ * 
  * @see https://core.ac.uk/services/api
  * Register for API key: https://core.ac.uk/services/api
  */
 
-export interface CoreSearchResult {
-  url: string;
-  title: string;
-  content: string;
+import { Source } from '../types';
+import { 
+  BaseProviderClient, 
+  BaseSearchResult, 
+  BaseSearchResponse 
+} from './base-client';
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface CoreSearchResult extends BaseSearchResult {
   authors: string[];
   year?: number;
   doi?: string;
@@ -46,132 +59,75 @@ export interface CoreWork {
   fullText?: string;
 }
 
+// =============================================================================
+// Client Implementation
+// =============================================================================
+
 const CORE_API_V3 = 'https://api.core.ac.uk/v3';
 
-export class CoreClient {
+export class CoreClient extends BaseProviderClient<CoreSearchResult> {
   private apiKey?: string;
-  private requestDelay = 100; // 10 req/sec
 
   constructor() {
+    super('core', {
+      rateLimitMs: 100, // 10 req/sec
+      maxResults: 20,
+      timeoutMs: 30000,
+    });
     this.apiKey = process.env.CORE_API_KEY;
   }
 
   /**
-   * Search for research papers
+   * Execute search against CORE API
    */
-  async search(
+  protected async executeSearch(
     query: string,
-    options?: {
-      limit?: number;
-      offset?: number;
-      yearFrom?: number;
-      yearTo?: number;
-      openAccess?: boolean;
-    }
-  ): Promise<CoreSearchResponse> {
-    try {
-      await this.rateLimit();
-
-      const limit = options?.limit ?? 10;
-      const offset = options?.offset ?? 0;
-
-      // Build query with filters
-      let searchQuery = query;
-      if (options?.yearFrom) {
-        searchQuery += ` AND yearPublished>=${options.yearFrom}`;
-      }
-      if (options?.yearTo) {
-        searchQuery += ` AND yearPublished<=${options.yearTo}`;
-      }
-
-      const params = new URLSearchParams({
-        q: searchQuery,
-        limit: String(limit),
-        offset: String(offset),
-      });
-
-      const headers: Record<string, string> = {
-        'Accept': 'application/json',
-      };
-      
-      if (this.apiKey) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-      }
-
-      const response = await fetch(`${CORE_API_V3}/search/works?${params}`, {
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`CORE API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const works: CoreWork[] = data.results || [];
-
-      return {
-        results: works.map(work => this.transformWork(work)),
-        total: data.totalHits || 0,
-      };
-    } catch (error) {
-      console.error('CORE search error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get a specific work by ID
-   */
-  async getWork(workId: number): Promise<CoreSearchResult | null> {
-    try {
-      await this.rateLimit();
-
-      const headers: Record<string, string> = {
-        'Accept': 'application/json',
-      };
-      
-      if (this.apiKey) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-      }
-
-      const response = await fetch(`${CORE_API_V3}/works/${workId}`, {
-        headers,
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error(`CORE API error: ${response.status}`);
-      }
-
-      const work: CoreWork = await response.json();
-      return this.transformWork(work);
-    } catch (error) {
-      console.error('CORE get work error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Search with full text content
-   */
-  async searchWithContent(
-    query: string,
-    options?: {
-      limit?: number;
-    }
-  ): Promise<CoreSearchResult[]> {
-    const response = await this.search(query, {
-      limit: options?.limit ?? 5,
+    limit: number
+  ): Promise<BaseSearchResponse<CoreSearchResult>> {
+    const params = new URLSearchParams({
+      q: query,
+      limit: String(limit),
+      offset: '0',
     });
 
-    return response.results;
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
+    const data = await this.fetchWithTimeout<{
+      results: CoreWork[];
+      totalHits?: number;
+    }>(`${CORE_API_V3}/search/works?${params}`, { headers });
+
+    const works = data.results || [];
+
+    return {
+      results: works.map(work => this.transformWork(work)),
+      total: data.totalHits || 0,
+    };
+  }
+
+  /**
+   * Transform CORE result to Source
+   */
+  protected transformResult(result: CoreSearchResult): Source {
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content || '',
+      quality: 0.85,
+      summary: result.content?.slice(0, 300),
+    };
   }
 
   /**
    * Transform CORE API work to our format
    */
   private transformWork(work: CoreWork): CoreSearchResult {
-    // Get the best URL
     const url = work.doi 
       ? `https://doi.org/${work.doi}`
       : work.downloadUrl 
@@ -193,18 +149,83 @@ export class CoreClient {
     };
   }
 
+  // ===========================================================================
+  // Public API Methods (maintaining backward compatibility)
+  // ===========================================================================
+
   /**
-   * Simple rate limiting
+   * Search for research papers with advanced options
    */
-  private lastRequest = 0;
-  private async rateLimit(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastRequest;
-    if (elapsed < this.requestDelay) {
-      await new Promise(resolve => setTimeout(resolve, this.requestDelay - elapsed));
+  async searchPapers(
+    query: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      yearFrom?: number;
+      yearTo?: number;
+      openAccess?: boolean;
     }
-    this.lastRequest = Date.now();
+  ): Promise<CoreSearchResponse> {
+    // Build query with filters
+    let searchQuery = query;
+    if (options?.yearFrom) {
+      searchQuery += ` AND yearPublished>=${options.yearFrom}`;
+    }
+    if (options?.yearTo) {
+      searchQuery += ` AND yearPublished<=${options.yearTo}`;
+    }
+
+    const response = await super.search(searchQuery, options?.limit);
+    
+    return {
+      results: response.results,
+      total: response.total || 0,
+    };
+  }
+
+  /**
+   * Get a specific work by ID
+   */
+  async getWork(workId: number): Promise<CoreSearchResult | null> {
+    try {
+      await this.respectRateLimit();
+
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
+      
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+
+      const work = await this.fetchWithTimeout<CoreWork>(
+        `${CORE_API_V3}/works/${workId}`,
+        { headers }
+      );
+
+      return this.transformWork(work);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      log.debug('CORE get work error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search with full text content
+   */
+  async searchWithContent(
+    query: string,
+    options?: {
+      limit?: number;
+    }
+  ): Promise<CoreSearchResult[]> {
+    const response = await this.searchPapers(query, {
+      limit: options?.limit ?? 5,
+    });
+
+    return response.results;
   }
 }
-
-

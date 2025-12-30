@@ -13,6 +13,10 @@
  * @see https://nominatim.org/release-docs/latest/api/Search/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface NominatimSearchResult {
   url: string;
   title: string;
@@ -197,7 +201,7 @@ export class NominatimClient {
         total: data.length,
       };
     } catch (error) {
-      console.error('Nominatim search error:', error);
+      log.debug('Nominatim search error:', error);
       throw error;
     }
   }
@@ -255,7 +259,7 @@ export class NominatimClient {
         osmId: data.osm_id,
       };
     } catch (error) {
-      console.error('Nominatim reverse error:', error);
+      log.debug('Nominatim reverse error:', error);
       throw error;
     }
   }
@@ -301,7 +305,7 @@ export class NominatimClient {
 
       return this.transformResult(data[0]);
     } catch (error) {
-      console.error('Nominatim lookup error:', error);
+      log.debug('Nominatim lookup error:', error);
       throw error;
     }
   }

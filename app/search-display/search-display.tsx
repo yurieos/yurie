@@ -43,6 +43,9 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
+  // Check if search is complete (has final-result event)
+  const isComplete = events.some(e => e.type === 'final-result');
+  
   // Initialize steps and start timer
   useEffect(() => {
     if (steps.length === 0 && events.length > 0) {
@@ -58,18 +61,29 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
     }
   }, [events.length, steps.length]);
 
-  // Update timer
+  // Update timer - stop immediately when complete
   useEffect(() => {
-    if (startTime) {
-      const interval = setInterval(() => {
-        if (!showFinalResult) {
-          setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-        }
-      }, 1000);
-      return () => clearInterval(interval);
+    if (!startTime || isComplete || showFinalResult) {
+      return;
     }
-    return; // Explicit return for TypeScript noImplicitReturns
-  }, [startTime, showFinalResult]);
+    
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, isComplete, showFinalResult]);
+  
+  // Immediately set final result when complete event is detected
+  useEffect(() => {
+    if (isComplete && !showFinalResult) {
+      setShowFinalResult(true);
+      // Freeze the timer at the final time
+      if (startTime) {
+        setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      }
+    }
+  }, [isComplete, showFinalResult, startTime]);
 
   // Update steps based on events
   useEffect(() => {
@@ -78,15 +92,29 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
     setSearchQueries(uniqueQueries);
     
     const latestPhaseEvent = events.findLast(e => e.type === 'phase-update');
+    const phases: SearchPhase[] = ['understanding', 'planning', 'searching', 'analyzing', 'synthesizing', 'complete'];
+    
+    // Handle case where final-result arrived but no phase-update (edge case safeguard)
+    if (isComplete && !latestPhaseEvent) {
+      setCurrentPhase('complete');
+      setCompletedPhases(new Set(phases));
+      setSteps(prev => prev.map(step => ({ ...step, status: 'completed' as const })));
+      return;
+    }
+    
     if (latestPhaseEvent?.type === 'phase-update') {
       setCurrentPhase(latestPhaseEvent.phase);
       
-      const phases: SearchPhase[] = ['understanding', 'planning', 'searching', 'analyzing', 'synthesizing', 'complete'];
       const currentPhaseIndex = phases.indexOf(latestPhaseEvent.phase);
-      if (currentPhaseIndex > 0) {
+      
+      // Mark all phases up to and including current as completed when complete
+      const searchIsComplete = isComplete || latestPhaseEvent.phase === 'complete';
+      
+      if (currentPhaseIndex > 0 || searchIsComplete) {
         setCompletedPhases(prev => {
           const newCompleted = new Set(prev);
-          for (let i = 0; i < currentPhaseIndex; i++) {
+          const endIndex = searchIsComplete ? phases.length : currentPhaseIndex;
+          for (let i = 0; i < endIndex; i++) {
             newCompleted.add(phases[i]);
           }
           return newCompleted;
@@ -113,6 +141,14 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
           { id: 'complete', label: 'Complete', status: 'pending' }
         );
         
+        // If search is complete, mark ALL steps as completed
+        if (searchIsComplete) {
+          baseSteps.forEach((step) => {
+            step.status = 'completed';
+          });
+          return baseSteps;
+        }
+        
         baseSteps.forEach((step) => {
           if (step.id.startsWith('search-')) {
             const searchIndex = parseInt(step.id.split('-')[1]);
@@ -138,7 +174,7 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
         return baseSteps;
       });
     }
-  }, [events]);
+  }, [events, isComplete]);
 
   // Handle streaming and source states
   useEffect(() => {
@@ -148,9 +184,7 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
       setStreamedContent(content);
     }
     
-    if (events.find(e => e.type === 'final-result')) {
-      setShowFinalResult(true);
-    }
+    // Note: showFinalResult is now set via the isComplete effect above
     
     if (events.length > 0) setLastEventTime(Date.now());
     
@@ -195,15 +229,21 @@ export function SearchDisplay({ events }: { events: SearchEvent[] }) {
     });
   }, [events]);
 
-  // Stalled check
+  // Stalled check - only run when not complete
   const [, setIsStalled] = useState(false);
   useEffect(() => {
+    // Don't check for stalls if search is complete
+    if (isComplete || showFinalResult) {
+      setIsStalled(false);
+      return;
+    }
+    
     const interval = setInterval(() => {
       const timeSinceLastEvent = Date.now() - lastEventTime;
-      setIsStalled(timeSinceLastEvent > 3000 && !showFinalResult && currentPhase === 'searching');
+      setIsStalled(timeSinceLastEvent > 3000 && currentPhase === 'searching');
     }, 1000);
     return () => clearInterval(interval);
-  }, [lastEventTime, showFinalResult, currentPhase]);
+  }, [lastEventTime, showFinalResult, currentPhase, isComplete]);
 
   // Auto-scroll
   useEffect(() => {

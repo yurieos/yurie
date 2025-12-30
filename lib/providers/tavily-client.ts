@@ -1,4 +1,7 @@
 import { tavily } from "@tavily/core";
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
 
 export interface TavilySearchResult {
   url: string;
@@ -60,7 +63,7 @@ export class TavilyClient {
         })),
       };
     } catch (error) {
-      console.error('Tavily search error:', error);
+      log.debug('Tavily search error:', error);
       throw error;
     }
   }
@@ -76,7 +79,7 @@ export class TavilyClient {
         content: r.rawContent,
       }));
     } catch (error) {
-      console.error('Tavily extract error:', error);
+      log.debug('Tavily extract error:', error);
       throw error;
     }
   }

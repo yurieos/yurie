@@ -1,4 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
+import { loggers } from './utils/logger';
+
+const log = loggers.core;
+
 import { NextResponse } from 'next/server';
 
 // Define error types for consistent user-facing messages
@@ -61,11 +65,11 @@ export function handleError(
   // Log the full error details for debugging
   if (process.env.NODE_ENV === 'production') {
     // In production, use structured logging
-    console.error(JSON.stringify(logData));
+    log.debug(JSON.stringify(logData));
   } else {
     // In development, make it more readable
-    console.error(`[${logData.context}] Error (${correlationId}):`, error);
-    console.error('Additional info:', additionalInfo);
+    log.debug(`[${logData.context}] Error (${correlationId}):`, error);
+    log.debug('Additional info:', additionalInfo);
   }
   
   // Return a sanitized error response for the client

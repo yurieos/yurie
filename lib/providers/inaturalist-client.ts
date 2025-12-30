@@ -11,6 +11,10 @@
  * @see https://api.inaturalist.org/v1/docs/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface INaturalistSearchResult {
   url: string;
   title: string;
@@ -126,7 +130,7 @@ export class INaturalistClient {
         total: data.total_results || taxa.length,
       };
     } catch (error) {
-      console.error('iNaturalist search error:', error);
+      log.debug('iNaturalist search error:', error);
       throw error;
     }
   }
@@ -152,7 +156,7 @@ export class INaturalistClient {
 
       return this.transformTaxon(taxon);
     } catch (error) {
-      console.error('iNaturalist get species error:', error);
+      log.debug('iNaturalist get species error:', error);
       throw error;
     }
   }
@@ -207,7 +211,7 @@ export class INaturalistClient {
         total: data.total_results || observations.length,
       };
     } catch (error) {
-      console.error('iNaturalist observations search error:', error);
+      log.debug('iNaturalist observations search error:', error);
       throw error;
     }
   }
@@ -251,7 +255,7 @@ export class INaturalistClient {
         total: data.total_results || observations.length,
       };
     } catch (error) {
-      console.error('iNaturalist species observations error:', error);
+      log.debug('iNaturalist species observations error:', error);
       throw error;
     }
   }
@@ -274,7 +278,7 @@ export class INaturalistClient {
 
       return taxa.map(taxon => this.transformTaxon(taxon));
     } catch (error) {
-      console.error('iNaturalist iconic taxa error:', error);
+      log.debug('iNaturalist iconic taxa error:', error);
       throw error;
     }
   }
@@ -321,7 +325,7 @@ export class INaturalistClient {
         total: data.total_results || taxa.length,
       };
     } catch (error) {
-      console.error('iNaturalist location search error:', error);
+      log.debug('iNaturalist location search error:', error);
       throw error;
     }
   }

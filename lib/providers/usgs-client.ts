@@ -11,6 +11,10 @@
  * @see https://earthquake.usgs.gov/fdsnws/event/1/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface USGSEarthquakeResult {
   url: string;
   title: string;
@@ -128,7 +132,7 @@ export class USGSClient {
         total: features.length,
       };
     } catch (error) {
-      console.error('USGS search error:', error);
+      log.debug('USGS search error:', error);
       throw error;
     }
   }
@@ -158,7 +162,7 @@ export class USGSClient {
         total: data.metadata.count,
       };
     } catch (error) {
-      console.error('USGS significant earthquakes error:', error);
+      log.debug('USGS significant earthquakes error:', error);
       throw error;
     }
   }
@@ -198,7 +202,7 @@ export class USGSClient {
         total: filtered.length,
       };
     } catch (error) {
-      console.error('USGS magnitude search error:', error);
+      log.debug('USGS magnitude search error:', error);
       throw error;
     }
   }
@@ -226,7 +230,7 @@ export class USGSClient {
       
       return this.transformFeature(data.features[0]);
     } catch (error) {
-      console.error('USGS get earthquake error:', error);
+      log.debug('USGS get earthquake error:', error);
       throw error;
     }
   }
@@ -277,7 +281,7 @@ export class USGSClient {
         total: data.features.length,
       };
     } catch (error) {
-      console.error('USGS region search error:', error);
+      log.debug('USGS region search error:', error);
       throw error;
     }
   }

@@ -13,6 +13,10 @@
  * @see https://finds.org.uk/database/search/results/format/json
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface PASSearchResult {
   url: string;
   title: string;
@@ -216,7 +220,7 @@ export class PASClient {
         pages: data.meta?.numPages || 1,
       };
     } catch (error) {
-      console.error('PAS search error:', error);
+      log.debug('PAS search error:', error);
       throw error;
     }
   }

@@ -1,4 +1,7 @@
 import Exa from "exa-js";
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
 
 export interface ExaSearchResult {
   url: string;
@@ -87,7 +90,7 @@ export class ExaClient {
         })),
       };
     } catch (error) {
-      console.error('Exa search error:', error);
+      log.debug('Exa search error:', error);
       throw error;
     }
   }
@@ -124,7 +127,7 @@ export class ExaClient {
         author: r.author,
       }));
     } catch (error) {
-      console.error('Exa findSimilar error:', error);
+      log.debug('Exa findSimilar error:', error);
       throw error;
     }
   }
@@ -150,7 +153,7 @@ export class ExaClient {
       };
     } catch {
       // Fallback to regular search if research endpoint not available
-      console.warn('Exa research endpoint not available, falling back to search');
+      log.debug('Exa research endpoint not available, falling back to search');
       const searchResults = await this.search(query, { numResults: 15 });
       
       return {

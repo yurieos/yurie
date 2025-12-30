@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirecrawlClient } from '@/lib/firecrawl';
+import { handleApiError, validationError, capLimit } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,29 +8,17 @@ export async function POST(request: NextRequest) {
     const { url, search, limit = 100, apiKey } = body;
 
     if (!url) {
-      return NextResponse.json(
-        { error: 'URL is required' },
-        { status: 400 }
-      );
+      return validationError('URL');
     }
 
     const firecrawl = new FirecrawlClient(apiKey);
     const result = await firecrawl.mapUrl(url, {
       search,
-      limit: Math.min(limit, 1000), // Cap at 1000 URLs
+      limit: capLimit(limit, 1000),
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Map API error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to map website' 
-      },
-      { status: 500 }
-    );
+    return handleApiError(error, 'Map API');
   }
 }
-
-

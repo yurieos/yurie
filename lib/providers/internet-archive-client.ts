@@ -12,6 +12,10 @@
  * @see https://archive.org/advancedsearch.php
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface InternetArchiveSearchResult {
   url: string;
   title: string;
@@ -191,7 +195,7 @@ export class InternetArchiveClient {
         pages: Math.ceil(data.response.numFound / rows),
       };
     } catch (error) {
-      console.error('Internet Archive search error:', error);
+      log.debug('Internet Archive search error:', error);
       throw error;
     }
   }
@@ -281,7 +285,7 @@ export class InternetArchiveClient {
         })),
       };
     } catch (error) {
-      console.error('Internet Archive get item error:', error);
+      log.debug('Internet Archive get item error:', error);
       return null;
     }
   }
@@ -308,7 +312,7 @@ export class InternetArchiveClient {
       if (!response.ok) return null;
       return await response.text();
     } catch (error) {
-      console.error('Internet Archive get text error:', error);
+      log.debug('Internet Archive get text error:', error);
       return null;
     }
   }

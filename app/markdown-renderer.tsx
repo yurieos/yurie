@@ -1,360 +1,221 @@
 'use client';
 
 import { memo, useMemo, useDeferredValue } from 'react';
-import katex from 'katex';
 
 interface MarkdownRendererProps {
   content: string;
   streaming?: boolean;
 }
 
-// Helper function for evidence symbol tooltips
-function getEvidenceTitle(symbol: string): string {
-  const titles: Record<string, string> = {
-    '🟢': 'Primary source - Direct experimental/observational data',
-    '🔵': 'Meta-analysis - Systematic review of multiple studies',
-    '🟡': 'Peer-reviewed - Published in academic journal',
-    '🟠': 'Expert opinion - Institutional report or guideline',
-    '⚪': 'Gray literature - Pre-print, white paper, or news',
-    '🔴': 'Anecdotal - Case report or discussion',
-  };
-  return titles[symbol] || 'Source reference';
-}
-
 export const MarkdownRenderer = memo(function MarkdownRenderer({ 
   content, 
   streaming = false 
 }: MarkdownRendererProps) {
-  // Performance: Defer content updates during rapid streaming to prevent UI blocking
+  // Defer updates during rapid streaming
   const deferredContent = useDeferredValue(content);
-  
-  // Simple markdown parsing
-  const parseMarkdown = (text: string) => {
-    try {
-      // Safety check for extremely long content to avoid regex stack overflow
-      if (text.length > 50000) {
-        return `<div class="p-4 bg-muted/30 rounded text-muted-foreground">Content too long to render preview (${Math.round(text.length / 1024)}KB)</div>`;
-      }
 
-      const blocks: Record<string, string> = {};
-    const protect = (content: string) => {
+  const parsedHtml = useMemo(() => {
+    if (!deferredContent) return '';
+    
+    let text = deferredContent;
+    
+    // Normalize line endings
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // ============================================
+    // PREPROCESSING: Convert common patterns to proper markdown
+    // ============================================
+    
+    // "Title Something" at start of line -> # Something
+    text = text.replace(/^Title\s+(.+)$/gm, '# $1');
+    
+    // "Abstract (lead answer) Content" -> ## Abstract\n\nContent
+    text = text.replace(/^Abstract\s*\(lead answer\)\s*(.*)$/gm, '## Abstract\n\n$1');
+    
+    // Standalone section headers
+    text = text.replace(/^(Abstract|Introduction|Background|Methodology|Methods|Results|Discussion|Conclusion|Conclusions|Summary|References)$/gm, '## $1');
+    
+    // Numbered sections: "1. Introduction" or "1.1 Background"
+    text = text.replace(/^(\d+\.(?:\d+\.)*)\s+([A-Z][^\n]+)$/gm, '### $1 $2');
+    
+    // ============================================
+    // PROTECT: Code blocks and inline code first
+    // ============================================
+    
+    const blocks: Record<string, string> = {};
+    const protect = (html: string): string => {
       const id = `__BLOCK_${Math.random().toString(36).substr(2, 9)}__`;
-      blocks[id] = content;
+      blocks[id] = html;
       return id;
     };
-
-    // Normalize line endings (CRLF -> LF)
-    let parsed = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    // 1. Protect Code Blocks
-    parsed = parsed.replace(/```([^\n]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-      const language = lang ? lang.trim() : '';
-      const langLabel = language 
-        ? `<div class="flex justify-between items-center mb-2 select-none"><span class="text-xs text-muted-foreground font-mono uppercase">${language}</span></div>` 
-        : '';
-      return protect(`<pre class="bg-secondary p-3 rounded-lg overflow-x-auto my-3 text-sm">${langLabel}<code>${code}</code></pre>`);
-    });
-
-    // 2. Protect Inline Code
-    parsed = parsed.replace(/`([^`]+)`/g, (match, code) => {
-      return protect(`<code class="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono text-secondary-foreground">${code}</code>`);
-    });
-
-    // 3. Protect/Render Math
-    const renderMath = (math: string, displayMode: boolean, originalMatch: string) => {
-      try {
-        const html = katex.renderToString(math.trim(), { 
-          displayMode, 
-          throwOnError: false,
-          strict: false,
-          trust: true,
-          macros: {
-            // Common macros not natively supported by KaTeX
-            "\\splitfrac": "\\genfrac{}{}{0pt}{}{#1}{#2}",
-            "\\R": "\\mathbb{R}",
-            "\\N": "\\mathbb{N}",
-            "\\Z": "\\mathbb{Z}",
-            "\\C": "\\mathbb{C}",
-            "\\Q": "\\mathbb{Q}",
-            "\\eps": "\\varepsilon",
-            "\\phi": "\\varphi",
-            "\\d": "\\mathrm{d}",
-            "\\grad": "\\nabla",
-            "\\div": "\\nabla \\cdot",
-            "\\curl": "\\nabla \\times",
-            "\\argmax": "\\operatorname{arg\\,max}",
-            "\\argmin": "\\operatorname{arg\\,min}",
-          }
-        });
-        return protect(html);
-      } catch {
-        // Return styled fallback for failed math
-        const fallbackClass = displayMode 
-          ? 'block text-center my-4 p-2 bg-secondary rounded font-mono text-sm' 
-          : 'bg-secondary px-1 rounded font-mono text-sm';
-        return protect(`<span class="${fallbackClass}">${originalMatch}</span>`);
-      }
-    };
-
-    // Block Math $$...$$ (with optional whitespace)
-    parsed = parsed.replace(/\$\$\s*([\s\S]*?)\s*\$\$/g, (match, math) => renderMath(math, true, match));
     
-    // Block Math \[...\] (with optional whitespace)
-    parsed = parsed.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (match, math) => renderMath(math, true, match));
-
-    // Inline Math \(...\) (with optional whitespace)
-    parsed = parsed.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (match, math) => renderMath(math, false, match));
-
-    // Inline Math $...$ - more permissive pattern (single $ not preceded/followed by $)
-    parsed = parsed.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (match, math) => renderMath(math, false, match));
-
-    // 4. Links & Citations (Enhanced for Research Intelligence Protocol)
-    parsed = parsed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline decoration-primary/30 underline-offset-4 transition-colors">$1</a>');
-    
-    // Evidence-tagged citations: 🟢[1], 🟡[2,3], etc.
-    // Match evidence symbols followed by citation numbers
-    parsed = parsed.replace(/(🟢|🔵|🟡|🟠|⚪|🔴)\[(\d+(?:,\s*\d+)*)\]/g, (match, symbol, nums) => {
-      const colorMap: Record<string, string> = {
-        '🟢': 'text-green-600 dark:text-green-400',      // Primary
-        '🔵': 'text-blue-600 dark:text-blue-400',        // Meta
-        '🟡': 'text-yellow-600 dark:text-yellow-400',    // Peer
-        '🟠': 'text-orange-600 dark:text-orange-400',    // Expert
-        '⚪': 'text-gray-500 dark:text-gray-400',        // Gray
-        '🔴': 'text-red-600 dark:text-red-400',          // Anecdotal
-      };
-      const colorClass = colorMap[symbol] || 'text-primary';
-      return `<sup class="citation ${colorClass} hover:opacity-80 cursor-pointer font-medium select-none transition-colors" title="${getEvidenceTitle(symbol)}">${symbol}[${nums}]</sup>`;
+    // Code blocks
+    text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const langLabel = lang ? `<div class="text-xs text-muted-foreground mb-2 font-mono uppercase">${lang}</div>` : '';
+      return protect(`<pre class="bg-secondary p-4 rounded-lg overflow-x-auto my-4 text-sm border border-border/50">${langLabel}<code class="font-mono">${escapeHtml(code.trim())}</code></pre>`);
     });
     
-    // Consensus markers: ✓✓✓, ✓✓, ⚔, ◇
-    parsed = parsed.replace(/(✓✓✓|✓✓|⚔|◇)/g, (match) => {
-      const consensusMap: Record<string, { class: string; title: string }> = {
-        '✓✓✓': { class: 'text-green-600 dark:text-green-400', title: 'Strong consensus (3+ sources agree)' },
-        '✓✓': { class: 'text-green-500 dark:text-green-300', title: 'Moderate consensus (2 sources agree)' },
-        '⚔': { class: 'text-amber-600 dark:text-amber-400', title: 'Conflicting evidence' },
-        '◇': { class: 'text-gray-500 dark:text-gray-400', title: 'Sole source' },
-      };
-      const info = consensusMap[match] || { class: 'text-primary', title: '' };
-      return `<span class="${info.class} font-medium cursor-help" title="${info.title}">${match}</span>`;
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, (_, code) => {
+      return protect(`<code class="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono">${escapeHtml(code)}</code>`);
     });
     
-    // Date markers: 📅 YYYY-MM or 📅 YYYY
-    parsed = parsed.replace(/📅\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)/g, '<span class="text-muted-foreground text-sm" title="Publication date">📅 $1</span>');
+    // ============================================
+    // PARSE: Markdown elements
+    // ============================================
     
-    // Temporal warnings: ⏰, ⚠️ DATED:
-    parsed = parsed.replace(/⏰\s*"([^"]+)"/g, '<span class="text-amber-600 dark:text-amber-400 text-sm font-medium" title="Time-sensitive information">⏰ $1</span>');
-    parsed = parsed.replace(/⚠️\s*DATED:/g, '<span class="text-amber-600 dark:text-amber-400 font-medium" title="Information may be outdated">⚠️ DATED:</span>');
+    // Links [text](url)
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, 
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline decoration-primary/30 underline-offset-2">$1</a>');
     
-    // Quality flags: 🚧, ⚠️, 🕐, 💰, 🌐
-    parsed = parsed.replace(/🚧\s*\*\*LIMITED DATA\*\*/g, '<span class="text-amber-600 dark:text-amber-400 font-semibold" title="Fewer than 3 quality sources available">🚧 LIMITED DATA</span>');
-    parsed = parsed.replace(/⚠️\s*\*\*CONTROVERSY\*\*/g, '<span class="text-red-600 dark:text-red-400 font-semibold" title="Significant scientific disagreement exists">⚠️ CONTROVERSY</span>');
-    parsed = parsed.replace(/🕐\s*\*\*EMERGING\*\*/g, '<span class="text-blue-600 dark:text-blue-400 font-semibold" title="Field evolving rapidly">🕐 EMERGING</span>');
-    parsed = parsed.replace(/💰\s*\*\*FUNDING CONCERN\*\*/g, '<span class="text-amber-600 dark:text-amber-400 font-semibold" title="Potential conflicts of interest">💰 FUNDING CONCERN</span>');
-    parsed = parsed.replace(/🌐\s*\*\*REGIONAL\*\*/g, '<span class="text-purple-600 dark:text-purple-400 font-semibold" title="Findings may not generalize globally">🌐 REGIONAL</span>');
+    // Citations [1], [2,3], etc.
+    text = text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, 
+      '<sup class="citation text-primary hover:text-primary/80 cursor-pointer font-medium text-xs">[$1]</sup>');
     
-    // Confidence bars: ████████░░ 80% or [████████░░] 80%
-    parsed = parsed.replace(/\[?(█+)(░+)\]?\s*(\d+)%/g, (match, filled, empty, percent) => {
-      const percentNum = parseInt(percent);
-      let colorClass = 'text-green-600 dark:text-green-400';
-      if (percentNum < 40) colorClass = 'text-red-600 dark:text-red-400';
-      else if (percentNum < 60) colorClass = 'text-amber-600 dark:text-amber-400';
-      else if (percentNum < 80) colorClass = 'text-yellow-600 dark:text-yellow-400';
-      return `<span class="${colorClass} font-mono text-sm" title="Confidence level: ${percent}%">${filled}${empty} ${percent}%</span>`;
-    });
+    // Bold
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
     
-    // Authority score bars in tables: █████ or ░░░░░
-    parsed = parsed.replace(/([█░]{5})/g, (match) => {
-      const filledCount = (match.match(/█/g) || []).length;
-      let colorClass = 'text-green-600 dark:text-green-400';
-      if (filledCount <= 1) colorClass = 'text-red-600 dark:text-red-400';
-      else if (filledCount <= 2) colorClass = 'text-amber-600 dark:text-amber-400';
-      else if (filledCount <= 3) colorClass = 'text-yellow-600 dark:text-yellow-400';
-      return `<span class="${colorClass} font-mono" title="Authority score: ${filledCount}/5">${match}</span>`;
-    });
+    // Italic
+    text = text.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
     
-    // Standard citations [1], [2,3], etc. (fallback for non-evidence-tagged)
-    parsed = parsed.replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="citation text-primary hover:text-primary/80 cursor-pointer font-medium select-none transition-colors">[$1]</sup>');
-    
-    // 5. Basic Formatting
-    // Bold: requires non-whitespace after opening and before closing **
-    parsed = parsed.replace(/\*\*(?=\S)((?:[^*]|\*(?!\*))+?)(?<=\S)\*\*/g, '<strong class="font-semibold">$1</strong>');
-    // Italic: requires non-whitespace after opening and before closing *, and not adjacent to other *
-    parsed = parsed.replace(/(?<!\*)\*(?!\*)(?=\S)((?:[^*])+?)(?<=\S)\*(?!\*)/g, '<em>$1</em>');
     // Strikethrough
-    parsed = parsed.replace(/~~(.+?)~~/g, '<del class="line-through opacity-70">$1</del>');
+    text = text.replace(/~~(.+?)~~/g, '<del class="line-through opacity-70">$1</del>');
     
-    // Clean up orphaned markdown symbols (unmatched ** or * at word boundaries)
-    // Remove orphaned ** that didn't get matched (typically at start of unfinished bold)
-    parsed = parsed.replace(/\*\*(?=\S)/g, '');
-    // Remove orphaned * that didn't get matched (typically at start of unfinished italic)
-    parsed = parsed.replace(/(?<!\*)\*(?!\*)(?=\S)/g, '');
+    // Headers (must process in order: h4 -> h3 -> h2 -> h1)
+    text = text.replace(/^#### (.+)$/gm, '<h4 class="text-base font-semibold mt-6 mb-3 text-foreground">$1</h4>');
+    text = text.replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold mt-8 mb-3 text-foreground">$1</h3>');
+    text = text.replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold mt-10 mb-4 text-foreground">$1</h2>');
+    text = text.replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-8 mb-5 text-foreground">$1</h1>');
     
-    // 6. Blockquotes
-    parsed = parsed.replace(/^> (.+)$/gm, '<blockquote class="border-l-3 border-primary pl-5 py-1 my-6 italic text-muted-foreground leading-relaxed">$1</blockquote>');
+    // Horizontal rule - only when explicitly used
+    text = text.replace(/^---$/gm, '<hr class="my-6 border-t border-border/30" />');
     
-    // 7. Headers - allow optional leading whitespace
-    parsed = parsed.replace(/^\s*#### (.+)$/gm, '<h4 class="text-base font-heading font-semibold mt-6 mb-3 tracking-tight leading-snug">$1</h4>');
-    parsed = parsed.replace(/^\s*### (.+)$/gm, '<h3 class="text-lg font-heading font-semibold mt-8 mb-4 tracking-tight leading-snug">$1</h3>');
-    parsed = parsed.replace(/^\s*## (.+)$/gm, '<h2 class="text-xl font-heading font-semibold mt-10 mb-4 tracking-tight leading-snug">$1</h2>');
-    parsed = parsed.replace(/^\s*# (.+)$/gm, '<h1 class="text-2xl font-heading font-bold mt-10 mb-5 tracking-tight leading-snug">$1</h1>');
+    // Blockquotes
+    text = text.replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-primary pl-4 py-1 my-4 italic text-muted-foreground">$1</blockquote>');
     
-    // 8. HR
-    parsed = parsed.replace(/^---$/gm, '<hr class="my-10 border-border" />');
-
-    // 9. Handle list blocks and tables
-    const listBlocks = parsed.split('\n');
+    // ============================================
+    // PARSE: Lists (complex handling)
+    // ============================================
+    
+    const lines = text.split('\n');
+    const processedLines: string[] = [];
     let inList = false;
     let listType = 'ul';
-    let inTable = false;
-    let tableAlignments: string[] = [];
+    let listDepth = 0;
     
-    const processedLines = [];
-    
-    for (let i = 0; i < listBlocks.length; i++) {
-      const line = listBlocks[i];
-      
-      // Table detection
-      const tableRowMatch = line.trim().match(/^\|(.+)\|$/);
-      
-      if (tableRowMatch && !inList) {
-        if (!inTable) {
-          // Check if next line is a separator to confirm it's a table header
-          if (i + 1 < listBlocks.length) {
-            const nextLine = listBlocks[i + 1].trim();
-            // Separator must look like |---|---| or |:---|---:| etc
-            const separatorMatch = nextLine.match(/^\|([-:| ]+)\|$/);
-            
-            if (separatorMatch) {
-              inTable = true;
-              const headerCells = tableRowMatch[1].split('|');
-              const separators = separatorMatch[1].split('|');
-              
-              // Determine alignments
-              tableAlignments = separators.map(s => {
-                s = s.trim();
-                if (s.startsWith(':') && s.endsWith(':')) return 'center';
-                if (s.endsWith(':')) return 'right';
-                return 'left';
-              });
-              
-              processedLines.push('<div class="overflow-x-auto my-4 rounded-lg border border-border"><table class="min-w-full divide-y divide-border text-sm">');
-              processedLines.push('<thead class="bg-secondary"><tr>');
-              
-              headerCells.forEach((cell, idx) => {
-                const align = tableAlignments[idx] || 'left';
-                processedLines.push(`<th class="px-3 py-2 text-${align} font-semibold text-secondary-foreground">${cell.trim()}</th>`);
-              });
-              
-              processedLines.push('</tr></thead><tbody class="divide-y divide-border bg-card">');
-              
-              // Skip the separator line
-              i++; 
-              continue;
-            }
-          }
-        } else {
-          // We are in a table and this is a row
-          const cells = tableRowMatch[1].split('|');
-          processedLines.push('<tr>');
-          cells.forEach((cell, idx) => {
-            const align = tableAlignments[idx] || 'left';
-            processedLines.push(`<td class="px-3 py-2 text-${align} text-card-foreground">${cell.trim()}</td>`);
-          });
-          processedLines.push('</tr>');
-          continue;
-        }
-      }
-      
-      // If we were in a table but this line is not a row
-      if (inTable && !tableRowMatch) {
-        inTable = false;
-        processedLines.push('</tbody></table></div>');
-      }
-
-      const bulletMatch = line.match(/^- (.+)$/);
-      const numberMatch = line.match(/^(\d+)\. (.+)$/);
-      const isListItem = bulletMatch || numberMatch;
-      const isContinuation = inList && line.match(/^\s+/) && line.trim();
-      
-      if (isListItem && !inList) {
-        listType = bulletMatch ? 'ul' : 'ol';
-        processedLines.push(`<${listType} class="space-y-3 my-6 pl-0">`);
-        inList = true;
-      } else if (!isListItem && !isContinuation && inList && line.trim() === '') {
-        // Empty line ends the list
-        processedLines.push(`</${listType}>`);
-        inList = false;
-      }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const bulletMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+      const numberMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
       
       if (bulletMatch) {
-        processedLines.push(`<li class="ml-6 list-disc leading-relaxed">${bulletMatch[1]}</li>`);
-      } else if (numberMatch) {
-        processedLines.push(`<li class="ml-6 list-decimal leading-relaxed">${numberMatch[2]}</li>`);
-      } else if (isContinuation && inList) {
-        // Append continuation to previous list item
-        if (processedLines.length > 0 && processedLines[processedLines.length - 1].includes('<li')) {
-          const lastLine = processedLines.pop();
-          if (lastLine) {
-            processedLines.push(lastLine.replace('</li>', ' ' + line.trim() + '</li>'));
-          }
+        const indent = bulletMatch[1].length;
+        const content = bulletMatch[2];
+        
+        if (!inList) {
+          processedLines.push('<ul class="my-4 space-y-2">');
+          inList = true;
+          listType = 'ul';
+          listDepth = indent;
         }
+        processedLines.push(`<li class="ml-6 list-disc leading-relaxed">${content}</li>`);
+      } else if (numberMatch) {
+        const indent = numberMatch[1].length;
+        const content = numberMatch[3];
+        
+        if (!inList) {
+          processedLines.push('<ol class="my-4 space-y-2">');
+          inList = true;
+          listType = 'ol';
+          listDepth = indent;
+        }
+        processedLines.push(`<li class="ml-6 list-decimal leading-relaxed">${content}</li>`);
       } else {
+        // End list if we hit a non-list line
+        if (inList && line.trim() === '') {
+          processedLines.push(`</${listType}>`);
+          inList = false;
+        }
         processedLines.push(line);
       }
     }
     
+    // Close any open list
     if (inList) {
       processedLines.push(`</${listType}>`);
     }
-    if (inTable) {
-      processedLines.push('</tbody></table></div>');
-    }
     
-    parsed = processedLines.join('\n');
+    text = processedLines.join('\n');
     
-    // 10. Restore Blocks
-    Object.keys(blocks).forEach(id => {
-       parsed = parsed.split(id).join(blocks[id]);
-    });
+    // ============================================
+    // PARSE: Paragraphs
+    // ============================================
     
-    // 11. Paragraphs
-    parsed = parsed.split('\n\n').map(para => {
-      if (para.trim() && 
-          !para.includes('<h') && 
-          !para.includes('<ul') && 
-          !para.includes('<ol') && 
-          !para.includes('<pre') && 
-          !para.includes('<div') && 
-          !para.includes('<table') && 
-          !para.includes('<blockquote') &&
-          !para.includes('<hr') &&
-          !para.includes('katex-display')) {
-        return `<p class="mb-5 leading-relaxed">${para}</p>`;
+    // Split by double newlines for paragraphs
+    text = text.split(/\n\n+/).map(para => {
+      const trimmed = para.trim();
+      if (!trimmed) return '';
+      
+      // Don't wrap if already an HTML element
+      if (trimmed.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr|div|table)/)) {
+        return trimmed;
       }
-      return para;
+      
+      // Check if paragraph starts with a number followed by bold text (pseudo-header)
+      // e.g., "1. **Title**:" or "2. <strong>Title</strong>"
+      const isNumberedBold = /^\d+\.\s*(<strong|<b|\*\*)/.test(trimmed);
+      
+      // Add extra top margin for numbered bold paragraphs (pseudo-headers)
+      if (isNumberedBold) {
+        return `<p class="mb-4 mt-6 leading-relaxed">${trimmed.replace(/\n/g, ' ')}</p>`;
+      }
+      
+      // Wrap in paragraph
+      return `<p class="mb-4 leading-relaxed">${trimmed.replace(/\n/g, ' ')}</p>`;
     }).join('\n');
     
-    // Clean up
-    parsed = parsed.replace(/<p class="mb-3"><\/p>/g, '');
-    parsed = parsed.replace(/\n/g, ' ');
+    // ============================================
+    // RESTORE: Protected blocks
+    // ============================================
     
-    return parsed;
-    } catch (e) {
-      console.error('Markdown parsing failed:', e);
-      return `<div class="whitespace-pre-wrap font-mono text-sm overflow-x-auto">${text}</div>`;
-    }
-  };
+    Object.keys(blocks).forEach(id => {
+      text = text.split(id).join(blocks[id]);
+    });
+    
+    // Clean up empty paragraphs
+    text = text.replace(/<p class="[^"]*"><\/p>/g, '');
+    
+    return text;
+  }, [deferredContent]);
 
-  // Performance: Memoize parsed content to avoid re-parsing on every render
-  const parsedHtml = useMemo(() => parseMarkdown(deferredContent), [deferredContent]);
+  // Safety check
+  if (deferredContent.length > 100000) {
+    return (
+      <div className="p-4 bg-muted/30 rounded text-muted-foreground">
+        Content too long to render ({Math.round(deferredContent.length / 1024)}KB)
+      </div>
+    );
+  }
 
   return (
-    <div className="text-foreground text-base">
+    <div className="text-foreground">
       <div 
         dangerouslySetInnerHTML={{ __html: parsedHtml }} 
-        className="markdown-content leading-[1.8] tracking-[0.01em] [&>h1]:text-foreground [&>h2]:text-foreground [&>h3]:text-foreground [&>h4]:text-foreground [&>p]:text-[1.05rem] [&>li]:text-[1.05rem]"
+        className="markdown-content leading-[1.75] tracking-[0.01em] text-[1.0625rem]"
       />
-      {streaming && <span className="animate-pulse text-primary">▊</span>}
+      {streaming && (
+        <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-0.5 align-text-bottom rounded-sm" />
+      )}
     </div>
   );
 });
+
+// Helper to escape HTML
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}

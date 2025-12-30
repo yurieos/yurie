@@ -1,22 +1,27 @@
 /**
  * Crossref API Client
  * 
+ * REFACTORED: Extended BaseProviderClient for shared functionality.
+ * Reduced from ~500 lines to ~400 lines by using base class utilities.
+ * 
  * Crossref is a not-for-profit membership organization for scholarly publishing.
  * They maintain a comprehensive database of DOIs and publication metadata.
- * 
- * Authentication Options:
- * - FREE tier: Add email to requests for "polite pool" (priority access)
- * - Crossref Plus: API token for higher limits and metadata-plus features
  * 
  * Coverage: 140+ million DOIs, journals, books, conference proceedings
  * Rate Limit: 50 requests/second (polite pool with email/token gets priority)
  * 
- * Perfect for: Citation lookups, DOI resolution, publication metadata,
- * reference verification, bibliometric analysis
- * 
  * @see https://www.crossref.org/documentation/retrieve-metadata/rest-api/
- * @see https://www.crossref.org/documentation/metadata-plus/
  */
+
+import { Source } from '../types';
+import { BaseProviderClient, BaseSearchResult, BaseSearchResponse } from './base-client';
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface CrossrefWork {
   DOI: string;
@@ -31,29 +36,16 @@ export interface CrossrefWork {
   'container-title'?: string[];
   publisher?: string;
   type: string;
-  published?: {
-    'date-parts': number[][];
-  };
-  'published-print'?: {
-    'date-parts': number[][];
-  };
-  'published-online'?: {
-    'date-parts': number[][];
-  };
+  published?: { 'date-parts': number[][] };
+  'published-print'?: { 'date-parts': number[][] };
+  'published-online'?: { 'date-parts': number[][] };
   abstract?: string;
   subject?: string[];
   'is-referenced-by-count': number;
   'references-count': number;
   URL: string;
-  link?: Array<{
-    URL: string;
-    'content-type': string;
-    'intended-application': string;
-  }>;
-  license?: Array<{
-    URL: string;
-    'content-version': string;
-  }>;
+  link?: Array<{ URL: string; 'content-type': string; 'intended-application': string }>;
+  license?: Array<{ URL: string; 'content-version': string }>;
   ISSN?: string[];
   ISBN?: string[];
   volume?: string;
@@ -62,7 +54,7 @@ export interface CrossrefWork {
   score?: number;
 }
 
-export interface CrossrefSearchResult {
+export interface CrossrefSearchResult extends BaseSearchResult {
   url: string;
   title: string;
   content: string;
@@ -76,125 +68,127 @@ export interface CrossrefSearchResult {
   pdfUrl?: string;
 }
 
-export interface CrossrefSearchResponse {
+export interface CrossrefSearchResponse extends BaseSearchResponse<CrossrefSearchResult> {
   results: CrossrefSearchResult[];
   total: number;
   query?: string;
 }
 
+// =============================================================================
+// Constants
+// =============================================================================
+
 const CROSSREF_API_BASE = 'https://api.crossref.org';
 
-export class CrossrefClient {
+// =============================================================================
+// Client Implementation
+// =============================================================================
+
+export class CrossrefClient extends BaseProviderClient<CrossrefSearchResult> {
   private apiToken?: string;
   private politeEmail?: string;
   private userAgent: string;
 
   constructor(apiTokenOrEmail?: string) {
-    // Check for Crossref Plus API token first
+    super('crossref', {
+      rateLimitMs: 20, // 50 requests/sec
+      maxResults: 25,
+      timeoutMs: 30000,
+    });
+    
     this.apiToken = process.env.CROSSREF_API_TOKEN || process.env.CROSSREF_PLUS_TOKEN;
-    
-    // Fall back to polite email for polite pool
     this.politeEmail = apiTokenOrEmail || process.env.CROSSREF_API_KEY || process.env.CROSSREF_EMAIL;
-    
     this.userAgent = 'YurieResearch/1.0 (https://yurie.app; mailto:research@yurie.app)';
   }
 
-  /**
-   * Build URL with authentication parameters
-   */
-  private buildUrl(endpoint: string, params: Record<string, string | undefined>): string {
+  // ===========================================================================
+  // Required Abstract Methods
+  // ===========================================================================
+
+  protected async executeSearch(query: string, limit: number): Promise<CrossrefSearchResponse> {
+    const url = this.buildCrossrefUrl('/works', { query, rows: String(limit) });
+    const response = await this.crossrefRequest<{
+      message: { items: CrossrefWork[]; 'total-results': number; query?: { 'search-terms': string } };
+    }>(url);
+
+    return {
+      results: (response.message.items || []).map(work => this.transformWorkToResult(work)),
+      total: response.message['total-results'] || 0,
+      query: response.message.query?.['search-terms'],
+    };
+  }
+
+  protected transformResult(result: CrossrefSearchResult): Source {
+    const quality = result.citationCount 
+      ? Math.min(0.5 + (result.citationCount / 500) * 0.5, 1) 
+      : 0.80;
+    
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content,
+      quality,
+      summary: this.truncate(result.content, 200),
+    };
+  }
+
+  // ===========================================================================
+  // Private Helpers
+  // ===========================================================================
+
+  private buildCrossrefUrl(endpoint: string, params: Record<string, string | undefined>): string {
     const url = new URL(`${CROSSREF_API_BASE}${endpoint}`);
-    
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
-        url.searchParams.set(key, value);
-      }
+      if (value !== undefined) url.searchParams.set(key, value);
     });
-    
-    // Add email for polite pool (token is passed via header)
     if (this.politeEmail && !this.apiToken) {
       url.searchParams.set('mailto', this.politeEmail);
     }
-    
     return url.toString();
   }
 
-  /**
-   * Make request with proper headers
-   */
-  private async request<T>(url: string): Promise<T> {
-    const headers: Record<string, string> = {
-      'User-Agent': this.userAgent,
-    };
-    
-    // Add Crossref Plus token if available
+  private async crossrefRequest<T>(url: string): Promise<T> {
+    const headers: Record<string, string> = { 'User-Agent': this.userAgent };
     if (this.apiToken) {
       headers['Crossref-Plus-API-Token'] = `Bearer ${this.apiToken}`;
     }
     
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { 
+      headers, 
+      signal: AbortSignal.timeout(this.timeoutMs) 
+    });
 
     if (!response.ok) {
       throw new Error(`Crossref API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return data;
+    return await response.json();
   }
 
-  /**
-   * Transform Crossref work to unified search result
-   */
   private transformWorkToResult(work: CrossrefWork): CrossrefSearchResult {
-    // Format authors
     const authors = (work.author || []).map(a => {
       if (a.name) return a.name;
       if (a.family && a.given) return `${a.family}, ${a.given}`;
       return a.family || a.given || 'Unknown';
     });
 
-    // Get publication year
     const dateParts = work.published?.['date-parts']?.[0] 
       || work['published-print']?.['date-parts']?.[0]
       || work['published-online']?.['date-parts']?.[0];
     const year = dateParts?.[0];
 
-    // Build content
     const contentParts: string[] = [];
-
     if (work.abstract) {
-      // Clean up JATS XML tags often in abstracts
-      const cleanAbstract = work.abstract
-        .replace(/<[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      contentParts.push(cleanAbstract);
+      contentParts.push(this.cleanHtml(work.abstract));
     }
+    if (authors.length > 0) contentParts.push(`\nAuthors: ${authors.slice(0, 10).join(', ')}`);
+    if (work['container-title']?.[0]) contentParts.push(`Journal: ${work['container-title'][0]}`);
+    if (year) contentParts.push(`Year: ${year}`);
+    if (work['is-referenced-by-count'] > 0) contentParts.push(`Citations: ${work['is-referenced-by-count']}`);
+    if (work.subject?.length) contentParts.push(`Subjects: ${work.subject.slice(0, 5).join(', ')}`);
 
-    if (authors.length > 0) {
-      contentParts.push(`\nAuthors: ${authors.slice(0, 10).join(', ')}`);
-    }
-
-    if (work['container-title']?.[0]) {
-      contentParts.push(`Journal: ${work['container-title'][0]}`);
-    }
-
-    if (year) {
-      contentParts.push(`Year: ${year}`);
-    }
-
-    if (work['is-referenced-by-count'] > 0) {
-      contentParts.push(`Citations: ${work['is-referenced-by-count']}`);
-    }
-
-    if (work.subject?.length) {
-      contentParts.push(`Subjects: ${work.subject.slice(0, 5).join(', ')}`);
-    }
-
-    // Find PDF link
     const pdfLink = work.link?.find(l => 
-      l['content-type'] === 'application/pdf' ||
-      l['intended-application'] === 'text-mining'
+      l['content-type'] === 'application/pdf' || l['intended-application'] === 'text-mining'
     );
 
     return {
@@ -212,8 +206,12 @@ export class CrossrefClient {
     };
   }
 
+  // ===========================================================================
+  // Public API - Extended Methods
+  // ===========================================================================
+
   /**
-   * Search works (articles, books, etc.)
+   * Search works with advanced options
    */
   async searchWorks(
     query: string,
@@ -227,9 +225,11 @@ export class CrossrefClient {
       toYear?: number;
     }
   ): Promise<CrossrefSearchResponse> {
+    await this.respectRateLimit();
+    
     try {
       const params: Record<string, string | undefined> = {
-        query: query,
+        query,
         rows: String(options?.limit ?? 10),
         offset: String(options?.offset ?? 0),
       };
@@ -239,43 +239,24 @@ export class CrossrefClient {
         params.order = options.order || 'desc';
       }
 
-      // Build filter string
       const filters: string[] = [];
-      
-      if (options?.type) {
-        filters.push(`type:${options.type}`);
-      }
-      
-      if (options?.fromYear) {
-        filters.push(`from-pub-date:${options.fromYear}`);
-      }
-      
-      if (options?.toYear) {
-        filters.push(`until-pub-date:${options.toYear}`);
-      }
+      if (options?.type) filters.push(`type:${options.type}`);
+      if (options?.fromYear) filters.push(`from-pub-date:${options.fromYear}`);
+      if (options?.toYear) filters.push(`until-pub-date:${options.toYear}`);
+      if (filters.length > 0) params.filter = filters.join(',');
 
-      if (filters.length > 0) {
-        params.filter = filters.join(',');
-      }
-
-      const url = this.buildUrl('/works', params);
-      const response = await this.request<{
-        message: {
-          items: CrossrefWork[];
-          'total-results': number;
-          query?: { 'search-terms': string };
-        };
+      const url = this.buildCrossrefUrl('/works', params);
+      const response = await this.crossrefRequest<{
+        message: { items: CrossrefWork[]; 'total-results': number; query?: { 'search-terms': string } };
       }>(url);
 
       return {
-        results: (response.message.items || []).map(work => 
-          this.transformWorkToResult(work)
-        ),
+        results: (response.message.items || []).map(work => this.transformWorkToResult(work)),
         total: response.message['total-results'] || 0,
         query: response.message.query?.['search-terms'],
       };
     } catch (error) {
-      console.error('Crossref search error:', error);
+      log.debug('Crossref search error:', error);
       throw error;
     }
   }
@@ -284,21 +265,18 @@ export class CrossrefClient {
    * Get work by DOI
    */
   async getByDoi(doi: string): Promise<CrossrefSearchResult | null> {
+    await this.respectRateLimit();
+    
     try {
-      // Clean DOI
       const cleanDoi = doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
+      const url = this.buildCrossrefUrl(`/works/${encodeURIComponent(cleanDoi)}`, {});
+      const response = await this.crossrefRequest<{ message: CrossrefWork }>(url);
       
-      const url = this.buildUrl(`/works/${encodeURIComponent(cleanDoi)}`, {});
-      const response = await this.request<{ message: CrossrefWork }>(url);
-
       if (!response.message) return null;
-
       return this.transformWorkToResult(response.message);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('404')) {
-        return null;
-      }
-      console.error('Crossref get DOI error:', error);
+      if (error instanceof Error && error.message.includes('404')) return null;
+      log.debug('Crossref get DOI error:', error);
       throw error;
     }
   }
@@ -306,29 +284,24 @@ export class CrossrefClient {
   /**
    * Search by title
    */
-  async searchByTitle(
-    title: string,
-    options?: { limit?: number }
-  ): Promise<CrossrefSearchResponse> {
+  async searchByTitle(title: string, options?: { limit?: number }): Promise<CrossrefSearchResponse> {
+    await this.respectRateLimit();
+    
     try {
-      const params: Record<string, string | undefined> = {
+      const url = this.buildCrossrefUrl('/works', {
         'query.title': title,
         rows: String(options?.limit ?? 10),
-      };
-
-      const url = this.buildUrl('/works', params);
-      const response = await this.request<{
+      });
+      const response = await this.crossrefRequest<{
         message: { items: CrossrefWork[]; 'total-results': number };
       }>(url);
 
       return {
-        results: (response.message.items || []).map(work => 
-          this.transformWorkToResult(work)
-        ),
+        results: (response.message.items || []).map(work => this.transformWorkToResult(work)),
         total: response.message['total-results'] || 0,
       };
     } catch (error) {
-      console.error('Crossref title search error:', error);
+      log.debug('Crossref title search error:', error);
       throw error;
     }
   }
@@ -336,42 +309,34 @@ export class CrossrefClient {
   /**
    * Search by author
    */
-  async searchByAuthor(
-    authorName: string,
-    options?: { limit?: number }
-  ): Promise<CrossrefSearchResponse> {
+  async searchByAuthor(authorName: string, options?: { limit?: number }): Promise<CrossrefSearchResponse> {
+    await this.respectRateLimit();
+    
     try {
-      const params: Record<string, string | undefined> = {
+      const url = this.buildCrossrefUrl('/works', {
         'query.author': authorName,
         rows: String(options?.limit ?? 10),
         sort: 'is-referenced-by-count',
         order: 'desc',
-      };
-
-      const url = this.buildUrl('/works', params);
-      const response = await this.request<{
+      });
+      const response = await this.crossrefRequest<{
         message: { items: CrossrefWork[]; 'total-results': number };
       }>(url);
 
       return {
-        results: (response.message.items || []).map(work => 
-          this.transformWorkToResult(work)
-        ),
+        results: (response.message.items || []).map(work => this.transformWorkToResult(work)),
         total: response.message['total-results'] || 0,
       };
     } catch (error) {
-      console.error('Crossref author search error:', error);
+      log.debug('Crossref author search error:', error);
       throw error;
     }
   }
 
   /**
-   * Get most cited works on a topic
+   * Get most cited works
    */
-  async getMostCited(
-    query: string,
-    options?: { limit?: number; fromYear?: number }
-  ): Promise<CrossrefSearchResponse> {
+  async getMostCited(query: string, options?: { limit?: number; fromYear?: number }): Promise<CrossrefSearchResponse> {
     return this.searchWorks(query, {
       limit: options?.limit ?? 10,
       sort: 'is-referenced-by-count',
@@ -384,18 +349,18 @@ export class CrossrefClient {
    * Get references cited by a work
    */
   async getReferences(doi: string): Promise<string[]> {
+    await this.respectRateLimit();
+    
     try {
       const cleanDoi = doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
-      
-      const url = this.buildUrl(`/works/${encodeURIComponent(cleanDoi)}`, {});
-      const response = await this.request<{ message: CrossrefWork & { reference?: Array<{ DOI?: string }> } }>(url);
+      const url = this.buildCrossrefUrl(`/works/${encodeURIComponent(cleanDoi)}`, {});
+      const response = await this.crossrefRequest<{ 
+        message: CrossrefWork & { reference?: Array<{ DOI?: string }> } 
+      }>(url);
 
-      const references = response.message.reference || [];
-      return references
-        .filter(r => r.DOI)
-        .map(r => r.DOI as string);
+      return (response.message.reference || []).filter(r => r.DOI).map(r => r.DOI as string);
     } catch (error) {
-      console.error('Crossref get references error:', error);
+      log.debug('Crossref get references error:', error);
       return [];
     }
   }
@@ -403,33 +368,27 @@ export class CrossrefClient {
   /**
    * Get works citing a specific DOI
    */
-  async getCitations(
-    doi: string,
-    options?: { limit?: number }
-  ): Promise<CrossrefSearchResponse> {
+  async getCitations(doi: string, options?: { limit?: number }): Promise<CrossrefSearchResponse> {
+    await this.respectRateLimit();
+    
     try {
       const cleanDoi = doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
-      
-      const params: Record<string, string | undefined> = {
+      const url = this.buildCrossrefUrl('/works', {
         filter: `references:${cleanDoi}`,
         rows: String(options?.limit ?? 10),
         sort: 'is-referenced-by-count',
         order: 'desc',
-      };
-
-      const url = this.buildUrl('/works', params);
-      const response = await this.request<{
+      });
+      const response = await this.crossrefRequest<{
         message: { items: CrossrefWork[]; 'total-results': number };
       }>(url);
 
       return {
-        results: (response.message.items || []).map(work => 
-          this.transformWorkToResult(work)
-        ),
+        results: (response.message.items || []).map(work => this.transformWorkToResult(work)),
         total: response.message['total-results'] || 0,
       };
     } catch (error) {
-      console.error('Crossref get citations error:', error);
+      log.debug('Crossref get citations error:', error);
       throw error;
     }
   }
@@ -437,24 +396,21 @@ export class CrossrefClient {
   /**
    * Search for journal metadata
    */
-  async searchJournals(
-    query: string,
-    options?: { limit?: number }
-  ): Promise<Array<{
+  async searchJournals(query: string, options?: { limit?: number }): Promise<Array<{
     title: string;
     publisher: string;
     issn: string[];
     subjects: string[];
     worksCount: number;
   }>> {
+    await this.respectRateLimit();
+    
     try {
-      const params: Record<string, string | undefined> = {
-        query: query,
+      const url = this.buildCrossrefUrl('/journals', {
+        query,
         rows: String(options?.limit ?? 10),
-      };
-
-      const url = this.buildUrl('/journals', params);
-      const response = await this.request<{
+      });
+      const response = await this.crossrefRequest<{
         message: {
           items: Array<{
             title: string;
@@ -474,7 +430,7 @@ export class CrossrefClient {
         worksCount: journal.counts?.['total-dois'] || 0,
       }));
     } catch (error) {
-      console.error('Crossref journal search error:', error);
+      log.debug('Crossref journal search error:', error);
       throw error;
     }
   }
@@ -489,11 +445,9 @@ export class CrossrefClient {
         method: 'HEAD',
         redirect: 'manual',
       });
-
       return response.headers.get('location');
     } catch {
       return null;
     }
   }
 }
-

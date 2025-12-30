@@ -12,6 +12,10 @@
  * Register for API key: https://www.courtlistener.com/sign-in/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface CourtListenerSearchResult {
   url: string;
   title: string;
@@ -83,6 +87,7 @@ export class CourtListenerClient {
       const params = new URLSearchParams({
         q: query,
         page_size: String(options?.limit ?? 10),
+        type: 'o', // opinions
       });
 
       // Add filters
@@ -99,17 +104,22 @@ export class CourtListenerClient {
         params.set('status', options.status);
       }
 
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
       if (this.apiKey) {
         headers['Authorization'] = `Token ${this.apiKey}`;
       }
 
       const response = await fetch(`${COURTLISTENER_API}/search/?${params}`, {
         headers,
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
-        throw new Error(`CourtListener API error: ${response.status}`);
+        // Return empty results for fallback instead of throwing
+        log.debug(`CourtListener API returned ${response.status}, returning empty results for fallback`);
+        return { results: [], total: 0 };
       }
 
       const data: CLSearchResponse = await response.json();
@@ -120,8 +130,9 @@ export class CourtListenerClient {
         nextPage: data.next,
       };
     } catch (error) {
-      console.error('CourtListener search error:', error);
-      throw error;
+      // Return empty results for fallback instead of throwing
+      log.debug('CourtListener search error:', error);
+      return { results: [], total: 0 };
     }
   }
 
@@ -169,7 +180,7 @@ export class CourtListenerClient {
       const opinion: CLOpinion = await response.json();
       return this.transformOpinion(opinion);
     } catch (error) {
-      console.error('CourtListener get opinion error:', error);
+      log.debug('CourtListener get opinion error:', error);
       throw error;
     }
   }
@@ -204,7 +215,7 @@ export class CourtListenerClient {
         shortName: court.short_name,
       }));
     } catch (error) {
-      console.error('CourtListener get courts error:', error);
+      log.debug('CourtListener get courts error:', error);
       throw error;
     }
   }
@@ -251,7 +262,7 @@ export class CourtListenerClient {
         nextPage: data.next,
       };
     } catch (error) {
-      console.error('CourtListener docket search error:', error);
+      log.debug('CourtListener docket search error:', error);
       throw error;
     }
   }

@@ -13,6 +13,10 @@
  * @see https://pleiades.stoa.org/downloads
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface PleiadesSearchResult {
   url: string;
   title: string;
@@ -192,7 +196,7 @@ export class PleiadesClient {
         total: places.length,
       };
     } catch (error) {
-      console.error('Pleiades search error:', error);
+      log.debug('Pleiades search error:', error);
       // Try alternative approach
       return this.searchViaJSON(query, options);
     }
@@ -236,7 +240,7 @@ export class PleiadesClient {
       const html = await response.text();
       return this.parseHTMLSearchResults(html, query, options?.limit ?? 10);
     } catch (error) {
-      console.error('Pleiades JSON search error:', error);
+      log.debug('Pleiades JSON search error:', error);
       throw error;
     }
   }
@@ -260,7 +264,7 @@ export class PleiadesClient {
       const place: PleiadesAPIPlace = await response.json();
       return this.transformPlace(place);
     } catch (error) {
-      console.error('Pleiades get place error:', error);
+      log.debug('Pleiades get place error:', error);
       return null;
     }
   }
@@ -360,46 +364,53 @@ export class PleiadesClient {
   }
 
   /**
-   * Parse RSS response from Pleiades
+   * Parse RSS/RDF response from Pleiades
    */
   private parseRSSResponse(rss: string): PleiadesSearchResult[] {
     const results: PleiadesSearchResult[] = [];
     
-    // Simple RSS parsing
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    // Parse RDF/RSS format - items have rdf:about attribute
+    // Pattern matches: <item rdf:about="...">...</item>
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/g;
     let match;
 
     while ((match = itemRegex.exec(rss)) !== null) {
-      const itemXml = match[1];
+      const itemXml = match[0]; // Include the full tag to extract rdf:about
+      const itemContent = match[1];
       
-      const title = this.extractTag(itemXml, 'title') || 'Unknown Place';
-      const link = this.extractTag(itemXml, 'link') || '';
-      const description = this.extractTag(itemXml, 'description') || '';
+      // Extract URL from rdf:about attribute or link tag
+      const aboutMatch = itemXml.match(/rdf:about="([^"]+)"/);
+      const link = aboutMatch ? aboutMatch[1] : (this.extractTag(itemContent, 'link') || '');
+      
+      const title = this.extractTag(itemContent, 'title') || 'Unknown Place';
+      const description = this.extractTag(itemContent, 'description') || '';
       
       // Extract Pleiades ID from link
       const idMatch = link.match(/places\/(\d+)/);
       const pleiadesId = idMatch ? idMatch[1] : '';
 
       // Extract coordinates if available
-      const geoLat = this.extractTag(itemXml, 'geo:lat');
-      const geoLong = this.extractTag(itemXml, 'geo:long');
+      const geoLat = this.extractTag(itemContent, 'geo:lat');
+      const geoLong = this.extractTag(itemContent, 'geo:long');
 
-      results.push({
-        url: link || `${PLEIADES_API}/places/${pleiadesId}`,
-        title,
-        content: description || `Ancient place: ${title}`,
-        pleiadesId,
-        featureTypes: [],
-        description,
-        latitude: geoLat ? parseFloat(geoLat) : undefined,
-        longitude: geoLong ? parseFloat(geoLong) : undefined,
-        timePeriodsKeys: [],
-        timePeriodLabels: [],
-        names: [],
-        connections: [],
-        creators: [],
-        contributors: [],
-      });
+      if (pleiadesId || link) {
+        results.push({
+          url: link || `${PLEIADES_API}/places/${pleiadesId}`,
+          title,
+          content: description || `Ancient place: ${title}`,
+          pleiadesId,
+          featureTypes: [],
+          description,
+          latitude: geoLat ? parseFloat(geoLat) : undefined,
+          longitude: geoLong ? parseFloat(geoLong) : undefined,
+          timePeriodsKeys: [],
+          timePeriodLabels: [],
+          names: [],
+          connections: [],
+          creators: [],
+          contributors: [],
+        });
+      }
     }
 
     return results;

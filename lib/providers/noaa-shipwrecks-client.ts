@@ -13,6 +13,10 @@
  * @see https://www.ngdc.noaa.gov/
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface ShipwreckSearchResult {
   url: string;
   title: string;
@@ -105,9 +109,22 @@ interface NOAAWrecksResponse {
 }
 
 // NOAA GeoServer WFS endpoint for wrecks
+// NOTE: The original endpoint has been deprecated. This client now returns empty results
+// and relies on the unified search fallback to Wikipedia/Firecrawl for shipwreck queries.
+// Original URL: https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/WrecksAndObstructions/MapServer/0/query
 const NOAA_WFS_URL = 'https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/WrecksAndObstructions/MapServer/0/query';
 
+// Flag to indicate the service is deprecated
+const SERVICE_DEPRECATED = true;
+
 export class NOAAShipwrecksClient {
+  /**
+   * Check if the service is available
+   * Returns false since the NOAA WFS endpoint has been deprecated
+   */
+  isAvailable(): boolean {
+    return !SERVICE_DEPRECATED;
+  }
   /**
    * Search for shipwrecks by location (bounding box)
    */
@@ -152,13 +169,15 @@ export class NOAAShipwrecksClient {
         total: data.numberMatched || data.features?.length || 0,
       };
     } catch (error) {
-      console.error('NOAA shipwrecks search error:', error);
+      log.debug('NOAA shipwrecks search error:', error);
       throw error;
     }
   }
 
   /**
    * Search for shipwrecks by name/keyword
+   * NOTE: The NOAA API has been deprecated. This method returns empty results
+   * to trigger fallback to Wikipedia/Firecrawl in the unified search.
    */
   async search(
     query: string,
@@ -168,6 +187,13 @@ export class NOAAShipwrecksClient {
       state?: string;
     }
   ): Promise<ShipwreckSearchResponse> {
+    // Return empty results since the API is deprecated
+    // The unified search will fallback to Wikipedia/Firecrawl
+    if (SERVICE_DEPRECATED) {
+      log.debug('NOAA Shipwrecks API is deprecated, returning empty results for fallback');
+      return { results: [], total: 0 };
+    }
+    
     try {
       // Build WHERE clause for text search
       const conditions = [];
@@ -213,7 +239,7 @@ export class NOAAShipwrecksClient {
         total: data.numberMatched || data.features?.length || 0,
       };
     } catch (error) {
-      console.error('NOAA shipwrecks search error:', error);
+      log.debug('NOAA shipwrecks search error:', error);
       throw error;
     }
   }
@@ -293,7 +319,7 @@ export class NOAAShipwrecksClient {
         total: data.numberMatched || data.features?.length || 0,
       };
     } catch (error) {
-      console.error('NOAA dangerous wrecks search error:', error);
+      log.debug('NOAA dangerous wrecks search error:', error);
       throw error;
     }
   }
@@ -340,7 +366,7 @@ export class NOAAShipwrecksClient {
         total: data.numberMatched || data.features?.length || 0,
       };
     } catch (error) {
-      console.error('NOAA historical wrecks search error:', error);
+      log.debug('NOAA historical wrecks search error:', error);
       throw error;
     }
   }
@@ -384,7 +410,7 @@ export class NOAAShipwrecksClient {
         total: data.numberMatched || data.features?.length || 0,
       };
     } catch (error) {
-      console.error('NOAA deep wrecks search error:', error);
+      log.debug('NOAA deep wrecks search error:', error);
       throw error;
     }
   }

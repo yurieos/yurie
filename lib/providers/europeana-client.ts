@@ -12,6 +12,10 @@
  * Register for API key: https://pro.europeana.eu/page/get-api
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface EuropeanaSearchResult {
   url: string;
   title: string;
@@ -64,7 +68,7 @@ export class EuropeanaClient {
   constructor() {
     const apiKey = process.env.EUROPEANA_API_KEY;
     if (!apiKey) {
-      console.warn('EUROPEANA_API_KEY not set - Europeana provider will not work. Get a free key at https://pro.europeana.eu/page/get-api');
+      log.debug('EUROPEANA_API_KEY not set - Europeana provider will not work. Get a free key at https://pro.europeana.eu/page/get-api');
     }
     this.apiKey = apiKey || '';
   }
@@ -134,7 +138,7 @@ export class EuropeanaClient {
         total: data.totalResults,
       };
     } catch (error) {
-      console.error('Europeana search error:', error);
+      log.debug('Europeana search error:', error);
       throw error;
     }
   }
@@ -170,7 +174,7 @@ export class EuropeanaClient {
 
       return this.transformFullItem(data.object);
     } catch (error) {
-      console.error('Europeana get item error:', error);
+      log.debug('Europeana get item error:', error);
       throw error;
     }
   }

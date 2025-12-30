@@ -1,4 +1,8 @@
 import { Source, EnhancedSource, ResearchDomain } from './types';
+import { loggers } from './utils/logger';
+
+const log = loggers.core;
+
 import { MODEL_CONFIG } from './config';
 import { generateResponse } from './openai-responses';
 import { 
@@ -371,7 +375,7 @@ Provide a focused summary that would help answer the user's question:`,
         summarized: true
       };
     } catch (error) {
-      console.warn(`Failed to summarize source ${source.url}:`, error);
+      log.debug(`Failed to summarize source ${source.url}:`, error);
       
       // Fallback to keyword extraction method
       const keywords = this.extractKeywords(query, searchQueries);

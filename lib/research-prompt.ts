@@ -12,36 +12,36 @@ import { ResearchDomain, ResearchContext, QualityFlag } from './types';
 // =============================================================================
 
 export const EVIDENCE_CLASSIFICATION_GUIDE = `
-## Evidence Classification (Required for every claim)
-Every factual claim MUST be tagged with an evidence class:
+## Citation Guidelines
+Use simple inline citations: [1], [2], [3]
 
-| Symbol | Class | Description | Weight |
-|--------|-------|-------------|--------|
-| 🟢 | Primary | Direct experimental/observational data, original research | 1.0 |
-| 🔵 | Meta | Systematic reviews, meta-analyses, Cochrane reviews | 0.95 |
-| 🟡 | Peer | Peer-reviewed journal publications | 0.85 |
-| 🟠 | Expert | Expert opinions, institutional reports, guidelines | 0.70 |
-| ⚪ | Gray | Pre-prints, white papers, news articles | 0.50 |
-| 🔴 | Anecdotal | Case reports, forum discussions, testimonials | 0.30 |
+When discussing evidence quality, mention it naturally in prose:
+- "A large randomized trial [1] found..."
+- "According to a meta-analysis of 12 studies [2]..."
+- "Preliminary research suggests [3]..."
+- "One case report noted [4]..."
 
-Format: "[claim] 🟢[1]" or "[claim] 🟡[2,3]"
+Don't use emoji or special symbols for evidence classification.
 `;
 
 export const CROSS_VALIDATION_GUIDE = `
-## Cross-Validation Matrix
-When multiple sources discuss the same topic, indicate agreement:
-- ✓✓✓ = Strong consensus (3+ independent sources agree)
-- ✓✓ = Moderate consensus (2 sources agree)
-- ⚔ = Conflicting evidence (sources disagree - MUST explain both sides)
-- ◇ = Sole source (only 1 source available - note reliability)
+## Source Agreement
+When sources agree or disagree, say so in prose:
+- "Multiple studies confirm..." or "There's broad consensus that..."
+- "Sources disagree on this point..." or "The evidence is mixed..."
+- "Only one source addresses this, so..."
+
+Don't use special symbols. Just write naturally.
 `;
 
 export const TEMPORAL_RELEVANCE_GUIDE = `
-## Temporal Relevance Indicator
-All time-sensitive claims must include:
-- 📅 YYYY-MM (publication/data date) after the citation
-- ⏰ "Current as of [date]" for rapidly evolving fields
-- ⚠️ DATED: prefix for information >2 years old in fast-moving fields (AI, medicine, markets)
+## Temporal Awareness
+Note dates naturally when relevant:
+- "A 2024 study found..."
+- "As of late 2025..."
+- "This 2019 data may be outdated given rapid developments..."
+
+Don't use emoji for dates. Just mention timing in prose when it matters.
 `;
 
 // =============================================================================
@@ -49,66 +49,33 @@ All time-sensitive claims must include:
 // =============================================================================
 
 export const SCIENTIFIC_DISCOVERY_TEMPLATE = `
-# [Research Title]
+Write a clear scientific research synthesis. Follow these guidelines:
 
-## 🎯 Research Question Classification
-- **Type:** [Descriptive | Correlational | Experimental | Mechanistic | Theoretical]
-- **TRL:** [1-9 Technology Readiness Level, if applicable]
-- **Field:** [Primary field] → [Subfield] → [Specific area]
-- **Keywords:** [Comma-separated key terms for indexing]
+**Format:**
+- Start with an executive summary (2-3 sentences with key findings)
+- Use prose paragraphs, not bullet points
+- Use ## headers for major sections (3-5 sections typical)
+- Inline citations: [1], [2], [3]
+- Tables ONLY for actual study comparisons (not for formatting)
+- No emoji in headers
 
-## 📊 Executive Summary
-[3-4 sentences with key findings. EVERY claim must have evidence tag: 🟢🔵🟡🟠⚪🔴[#]]
+**Structure:**
+1. Executive summary (the answer)
+2. Key findings (in prose, with citations)
+3. Methodology notes (if relevant)
+4. Limitations and gaps
+5. Implications or future directions
 
-## 🔬 Methodology Landscape
+**Scientific rigor:**
+- Note study quality (sample size, design)
+- Flag when sources agree or conflict
+- Distinguish between strong evidence and preliminary findings
+- Include effect sizes when available
 
-### Study Comparison Matrix
-| Study | Design | n | Duration | Quality Score | Limitations |
-|-------|--------|---|----------|---------------|-------------|
-[Populate with key studies analyzed, quality 1-5 stars]
-
-### Methodological Notes
-[Brief assessment of overall methodological rigor across sources]
-
-## 📈 Key Findings
-
-### Finding 1: [Descriptive Title]
-**Evidence Strength:** [✓✓✓|✓✓|◇] | **Class:** [🟢🔵🟡🟠⚪🔴]
-
-[Detailed explanation with inline evidence-tagged citations]
-
-**Mechanism:** [If known, explain the underlying mechanism]
-**Effect Size:** [Quantitative measure if available]
-**Reproducibility:** [Confirmed in N studies | Partially confirmed | Unconfirmed | Contradicted]
-
-### Finding 2: [Descriptive Title]
-[Same structure as Finding 1]
-
-### Finding 3: [Descriptive Title]
-[Same structure as Finding 1]
-
-## ⚠️ Limitations & Knowledge Gaps
-- **Gap 1:** [What is unknown] → [Potential research direction]
-- **Gap 2:** [What is unknown] → [Potential research direction]
-- **Methodological Concerns:** [Any systematic issues in the literature]
-
-## 🔮 Future Research Directions
-1. [Emerging research area with brief rationale]
-2. [Unanswered question that warrants investigation]
-3. [Technological or methodological advancement needed]
-
-## 📚 Source Quality Assessment
-| # | Source | Type | Auth. | Year | Open? | Conflicts |
-|---|--------|------|-------|------|-------|-----------|
-[Number each source, assess quality 1-5, note access and conflicts]
-
----
-**Research Integrity Note**
-- Sources analyzed: [N]
-- Primary: [N] | Peer-reviewed: [N] | Gray literature: [N]
-- Potential conflicts identified: [Yes/No - if yes, specify]
-- Overall confidence: [Low|Medium|High|Very High] ([0-100]%)
-- Analysis date: [Current date]
+**Keep it clean:**
+- Prose over bullet points
+- Minimal tables
+- Clear section hierarchy
 `;
 
 export const MEDICAL_DRUG_TEMPLATE = `
@@ -553,79 +520,32 @@ export const ECONOMIC_RESEARCH_TEMPLATE = `
 `;
 
 export const GENERAL_RESEARCH_TEMPLATE = `
-# [Topic] Research Synthesis
+Write a clear, well-structured research response. Follow these guidelines:
 
-## 📊 Confidence Assessment
-**Overall Confidence:** [████████░░] [0-100]%
+**Format:**
+- Start with the direct answer or key finding
+- Use prose paragraphs as the primary form (not bullet points)
+- Use ## headers for major sections only (2-4 sections typical)
+- Inline citations: [1], [2], [3] linked to sources
+- No tables unless presenting actual comparative data
+- No emoji in headers
+- No horizontal rules or separators
 
-| Aspect | Confidence | Basis |
-|--------|------------|-------|
-| Core Facts | [██████████] [0-100]% | [Basis for confidence] |
-| Mechanisms/Causes | [████████░░] [0-100]% | [Basis] |
-| Predictions/Implications | [████░░░░░░] [0-100]% | [Basis] |
+**Structure:**
+1. Lead paragraph with the answer
+2. Evidence and analysis (in prose)
+3. Limitations or caveats (if relevant)
+4. Brief conclusion or implications
 
-## 🎯 Key Insights
+**Citation style:**
+- "Research shows X [1] and Y [2]"
+- Group related citations: [1,2,3]
+- Cite specific claims, not general knowledge
 
-### Insight 1: [Descriptive Title]
-**Evidence:** [🟢🔵🟡🟠⚪🔴][#] | **Consensus:** [✓✓✓|✓✓|⚔|◇]
-
-[Detailed explanation with inline citations]
-
-### Insight 2: [Descriptive Title]
-**Evidence:** [Evidence tags] | **Consensus:** [Consensus marker]
-
-[Detailed explanation]
-
-### Insight 3: [Descriptive Title]
-**Evidence:** [Evidence tags] | **Consensus:** [Consensus marker]
-
-[Detailed explanation]
-
-## 🔍 Deep Analysis
-
-### [Theme 1]
-[Comprehensive analysis with evidence-tagged citations]
-
-### [Theme 2]
-[Comprehensive analysis with evidence-tagged citations]
-
-### [Theme 3]
-[Comprehensive analysis with evidence-tagged citations]
-
-## ⚖️ Balanced Perspectives
-| Perspective | Proponents | Key Evidence | Limitations |
-|-------------|------------|--------------|-------------|
-[If topic has multiple viewpoints or controversy]
-
-## 🚀 Implications
-
-### Short-term Implications
-- [Implication 1]
-- [Implication 2]
-
-### Long-term Implications
-- [Implication 1]
-- [Implication 2]
-
-### For Specific Stakeholders
-- **[Stakeholder 1]:** [Implications]
-- **[Stakeholder 2]:** [Implications]
-
-## ❓ Unanswered Questions
-1. [Question that remains unanswered]
-2. [Question that warrants further research]
-
-## 📚 Source Quality Assessment
-| # | Source | Type | Auth. | Date | Open | Conflicts |
-|---|--------|------|-------|------|------|-----------|
-
----
-**Research Integrity Note**
-- Sources analyzed: [N]
-- Primary: [N] | Peer-reviewed: [N] | Gray literature: [N]
-- Conflicts identified: [Yes/No]
-- Overall confidence: [Low|Medium|High|Very High] ([0-100]%)
-- Analysis date: [Current date]
+**Keep it clean:**
+- Minimal formatting
+- Substance over decoration
+- Clear hierarchy through headers, not visual elements
 `;
 
 // =============================================================================

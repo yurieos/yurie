@@ -1,4 +1,8 @@
 import { Redis } from '@upstash/redis'
+import { loggers } from './utils/logger';
+
+const log = loggers.core;
+
 
 // Initialize Redis client from environment variables
 // Uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
@@ -46,7 +50,7 @@ export async function saveConversation(
 ): Promise<boolean> {
   const redis = getRedis()
   if (!redis) {
-    console.warn('Redis not configured, chat history will not be saved')
+    log.debug('Redis not configured, chat history will not be saved')
     return false
   }
 
@@ -86,7 +90,7 @@ export async function saveConversation(
 
     return true
   } catch (error) {
-    console.error('Failed to save conversation:', error)
+    log.debug('Failed to save conversation:', error)
     return false
   }
 }
@@ -112,7 +116,7 @@ export async function getConversationList(
       return item as Conversation
     })
   } catch (error) {
-    console.error('Failed to get conversation list:', error)
+    log.debug('Failed to get conversation list:', error)
     return []
   }
 }
@@ -141,7 +145,7 @@ export async function getConversation(
     
     return data as ChatMessage[]
   } catch (error) {
-    console.error('Failed to get conversation:', error)
+    log.debug('Failed to get conversation:', error)
     return null
   }
 }
@@ -175,7 +179,7 @@ export async function deleteConversation(
 
     return true
   } catch (error) {
-    console.error('Failed to delete conversation:', error)
+    log.debug('Failed to delete conversation:', error)
     return false
   }
 }
@@ -217,7 +221,7 @@ export async function updateConversationTitle(
 
     return false
   } catch (error) {
-    console.error('Failed to update conversation title:', error)
+    log.debug('Failed to update conversation title:', error)
     return false
   }
 }
@@ -245,7 +249,7 @@ export async function clearAllConversations(userId: string): Promise<boolean> {
 
     return true
   } catch (error) {
-    console.error('Failed to clear all conversations:', error)
+    log.debug('Failed to clear all conversations:', error)
     return false
   }
 }

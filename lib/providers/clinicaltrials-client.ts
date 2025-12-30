@@ -11,6 +11,10 @@
  * @see https://clinicaltrials.gov/data-api/api
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface ClinicalTrialSearchResult {
   url: string;
   title: string;
@@ -145,7 +149,7 @@ export class ClinicalTrialsClient {
         nextPageToken: data.nextPageToken,
       };
     } catch (error) {
-      console.error('ClinicalTrials.gov search error:', error);
+      log.debug('ClinicalTrials.gov search error:', error);
       throw error;
     }
   }
@@ -165,7 +169,7 @@ export class ClinicalTrialsClient {
       const study: CTGStudy = await response.json();
       return this.transformStudy(study);
     } catch (error) {
-      console.error('ClinicalTrials.gov get study error:', error);
+      log.debug('ClinicalTrials.gov get study error:', error);
       throw error;
     }
   }

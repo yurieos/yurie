@@ -11,6 +11,10 @@
  * @see https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest
  */
 
+import { loggers } from '../utils/logger';
+
+const log = loggers.provider;
+
 export interface PubChemSearchResult {
   url: string;
   title: string;
@@ -69,6 +73,69 @@ export class PubChemClient {
   private requestDelay = 200; // 5 req/sec
 
   /**
+   * Extract compound names from natural language queries
+   * e.g., "aspirin chemical structure" -> ["aspirin"]
+   *       "molecular formula of glucose" -> ["glucose"]
+   */
+  private extractCompoundNames(query: string): string[] {
+    const q = query.toLowerCase();
+    
+    // Common patterns to extract compound names
+    const patterns = [
+      /(?:structure|formula|properties|composition|molecule)\s+(?:of|for)\s+(\w+)/i,
+      /(\w+)\s+(?:structure|formula|chemical|molecule|compound)/i,
+      /what\s+is\s+(\w+)\s+made\s+of/i,
+      /(\w+)\s+molecular/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = query.match(pattern);
+      if (match && match[1]) {
+        return [match[1]];
+      }
+    }
+    
+    // Known compound names to look for
+    const knownCompounds = [
+      'aspirin', 'caffeine', 'acetaminophen', 'ibuprofen', 'paracetamol',
+      'benzene', 'ethanol', 'methanol', 'acetone', 'glucose', 'sucrose',
+      'sodium', 'potassium', 'magnesium', 'calcium', 'chloride',
+      'ammonia', 'water', 'oxygen', 'nitrogen', 'hydrogen',
+      'methane', 'propane', 'butane', 'octane', 'hexane',
+      'melatonin', 'dopamine', 'serotonin', 'adrenaline', 'cortisol',
+      'insulin', 'testosterone', 'estrogen', 'progesterone',
+      'penicillin', 'amoxicillin', 'metformin', 'atorvastatin',
+      'nicotine', 'morphine', 'cocaine', 'heroin', 'thc', 'cbd',
+      'vitamin', 'amino', 'protein', 'acid', 'salt',
+    ];
+    
+    // Look for known compound names in the query
+    for (const compound of knownCompounds) {
+      if (q.includes(compound)) {
+        // Extract the word that contains or matches the compound
+        const words = q.split(/\s+/);
+        for (const word of words) {
+          if (word.includes(compound) || compound.includes(word)) {
+            return [word.replace(/[^a-z]/g, '')];
+          }
+        }
+        return [compound];
+      }
+    }
+    
+    // Fallback: try the first significant word (skip common words)
+    const skipWords = new Set(['what', 'is', 'the', 'of', 'for', 'a', 'an', 'structure', 
+      'formula', 'chemical', 'molecular', 'compound', 'molecule', 'properties', 'find']);
+    const words = q.split(/\s+/).filter(w => w.length > 2 && !skipWords.has(w));
+    
+    if (words.length > 0) {
+      return [words[0]];
+    }
+    
+    return [query];
+  }
+
+  /**
    * Search for compounds by name
    */
   async search(
@@ -80,37 +147,37 @@ export class PubChemClient {
     try {
       await this.rateLimit();
 
-      // First, search for compound IDs
-      const searchResponse = await fetch(
-        `${PUBCHEM_API}/compound/name/${encodeURIComponent(query)}/cids/JSON`
-      );
+      // Extract compound names from the query
+      const compoundNames = this.extractCompoundNames(query);
+      log.debug(`PubChem: extracted compounds from "${query}": ${compoundNames.join(', ')}`);
+      
+      // Try each extracted compound name
+      for (const compoundName of compoundNames) {
+        const searchResponse = await fetch(
+          `${PUBCHEM_API}/compound/name/${encodeURIComponent(compoundName)}/cids/JSON`
+        );
 
-      if (!searchResponse.ok) {
-        if (searchResponse.status === 404) {
-          return { results: [], total: 0 };
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          const cids: number[] = searchData.IdentifierList?.CID || [];
+
+          if (cids.length > 0) {
+            // Limit results
+            const limitedCids = cids.slice(0, options?.limit ?? 10);
+            // Get properties for these compounds
+            const results = await this.getCompoundsInfo(limitedCids);
+            return {
+              results,
+              total: cids.length,
+            };
+          }
         }
-        throw new Error(`PubChem API error: ${searchResponse.status}`);
       }
-
-      const searchData = await searchResponse.json();
-      const cids: number[] = searchData.IdentifierList?.CID || [];
-
-      if (cids.length === 0) {
-        return { results: [], total: 0 };
-      }
-
-      // Limit results
-      const limitedCids = cids.slice(0, options?.limit ?? 10);
-
-      // Get properties for these compounds
-      const results = await this.getCompoundsInfo(limitedCids);
-
-      return {
-        results,
-        total: cids.length,
-      };
+      
+      // No compounds found with any extracted name
+      return { results: [], total: 0 };
     } catch (error) {
-      console.error('PubChem search error:', error);
+      log.debug('PubChem search error:', error);
       throw error;
     }
   }
@@ -125,7 +192,7 @@ export class PubChemClient {
       const results = await this.getCompoundsInfo([cid]);
       return results[0] || null;
     } catch (error) {
-      console.error('PubChem get compound error:', error);
+      log.debug('PubChem get compound error:', error);
       throw error;
     }
   }
@@ -168,7 +235,7 @@ export class PubChemClient {
         total: cids.length,
       };
     } catch (error) {
-      console.error('PubChem formula search error:', error);
+      log.debug('PubChem formula search error:', error);
       throw error;
     }
   }
@@ -213,7 +280,7 @@ export class PubChemClient {
         total: cids.length,
       };
     } catch (error) {
-      console.error('PubChem SMILES search error:', error);
+      log.debug('PubChem SMILES search error:', error);
       throw error;
     }
   }
@@ -339,7 +406,7 @@ export class PubChemClient {
         ghs: [],
       };
     } catch (error) {
-      console.error('PubChem safety info error:', error);
+      log.debug('PubChem safety info error:', error);
       return null;
     }
   }
