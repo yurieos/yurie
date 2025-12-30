@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import FirecrawlApp from '@mendable/firecrawl-js';
+import Firecrawl from '@mendable/firecrawl-js';
 import OpenAI from 'openai';
 import { buildVisualResearchPrompt } from '@/lib/yurie-system-prompt';
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey });
+    const firecrawl = new Firecrawl({ apiKey: firecrawlApiKey });
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
     const stream = new ReadableStream({
@@ -83,9 +83,10 @@ export async function POST(req: NextRequest) {
           console.log('[Visual Research] Starting search for:', query);
           sse.sendEvent('searching', { query, message: 'Searching the web...' });
 
-          let searchResult;
+          let searchData;
           try {
-            searchResult = await firecrawl.search(query, {
+            // Firecrawl v4 search API - returns SearchData with web/news/images arrays
+            searchData = await firecrawl.search(query, {
               limit: 5,
               scrapeOptions: {
                 formats: ['markdown', { type: 'screenshot', fullPage: true }]
@@ -96,32 +97,28 @@ export async function POST(req: NextRequest) {
             throw new Error(`Search failed: ${searchError instanceof Error ? searchError.message : 'Unknown error'}`);
           }
 
-          // Type assertion for Firecrawl response
-          const typedResult = searchResult as { 
-            success?: boolean; 
-            data?: Array<{
-              url: string;
-              title?: string;
-              description?: string;
-              markdown?: string;
-              screenshot?: string;
-              metadata?: { title?: string; description?: string };
-            }>; 
-            error?: string 
+          // Firecrawl v4 returns SearchData with web/news/images arrays
+          // Each item is a Document with url, title, markdown, screenshot, etc.
+          type SearchResultItem = {
+            url: string;
+            title?: string;
+            description?: string;
+            markdown?: string;
+            screenshot?: string;
+            metadata?: { title?: string; description?: string };
           };
 
-          console.log('[Visual Research] Search result:', typedResult.success, 'Count:', typedResult.data?.length);
+          // Get web results (primary source for research)
+          const webResults = (searchData?.web || []) as SearchResultItem[];
+          
+          console.log('[Visual Research] Search result count:', webResults.length);
 
-          if (!typedResult.success) {
-            throw new Error(typedResult.error || 'Search failed - no results returned');
-          }
-
-          if (!typedResult.data || typedResult.data.length === 0) {
+          if (webResults.length === 0) {
             throw new Error('No search results found for your query. Try different keywords.');
           }
 
           // Transform results
-          const results: SearchResult[] = typedResult.data.map(item => ({
+          const results: SearchResult[] = webResults.map(item => ({
             url: item.url,
             title: item.title || item.metadata?.title || 'Untitled',
             description: item.description || item.metadata?.description || '',
